@@ -97,6 +97,86 @@ input fields. See \texttt{../docs/refactor.md} for the rationale and the
 
 % --- entries appended below as cropping policy is finalized ------------------
 
+\subsection{Framework default crop rule}\label{sec:cropping-default}
+
+\paragraph{Question.} Which cropping rule should the framework apply by default
+when extracting a CMIP6 model's data over a user-specified country?
+
+\paragraph{Alternatives considered.}
+\begin{itemize}
+  \item \textbf{\texttt{bbox}}: rectangular slice from
+        \texttt{country\_codes.json}, no shapefile dependency. Paper-era
+        setting; over-includes ocean and neighbouring land, especially for
+        archipelagic countries like Greece.
+  \item \textbf{\texttt{shapefile\_strict}}: binary mask via
+        \texttt{rasterio.features.geometry\_mask} with
+        \texttt{all\_touched=False} --- a pixel is included only if its
+        centroid lies inside the country polygon. Risk: leaves zero pixels
+        for small countries on coarse grids (e.g.\ Cyprus on CanESM5
+        $\sim$2.8\,\textdegree).
+  \item \textbf{\texttt{shapefile\_lenient}}: binary mask via
+        \texttt{rasterio.features.geometry\_mask} with
+        \texttt{all\_touched=True} --- any pixel touched by the country
+        polygon is included. NaN outside the country.
+  \item \textbf{\texttt{shapefile\_fractional}}: per-pixel area-fraction
+        inside the country polygon, in $[0, 1]$, via per-cell
+        \texttt{shapely} intersection. Returns the data un-masked plus a
+        weight array. Boundary-precision option; opt-in.
+\end{itemize}
+
+\paragraph{Choice.} \texttt{shapefile\_lenient}.
+
+\paragraph{Rationale.} Three reasons. First, \emph{operational simplicity}:
+the cropped result is a rectangular \texttt{DataArray} with NaN outside the
+country, which xarray and matplotlib both handle natively; the existing
+$\cos(\varphi)$ area-weighted spatial-mean code works unchanged because the
+\texttt{xr.DataArray.weighted(\dots).mean(\dots)} primitive already ignores
+NaN entries. Second, \emph{prototype consistency}: the legacy
+\texttt{climpact/shp\_extraction.ipynb} prototype already uses this rule, and
+adopting it as the default avoids re-litigating an empirical choice that was
+satisfactory in earlier exploratory work. Third, \emph{empirical validation}:
+the M5 review (visual comparison of all four methods over Greece, Cyprus, and
+Switzerland on CanESM5 and MPI-ESM1-2-HR; see
+\texttt{notebooks/exploratory/m5\_cropping\_review/}) confirmed that
+\texttt{shapefile\_lenient} captures the country footprint sensibly across
+both archipelagic (Greece), small-island (Cyprus), and mountainous-landlocked
+(Switzerland) geometries on coarse and fine native grids. The paper's
+regression test continues to pin \texttt{bbox} for backward compatibility;
+\texttt{shapefile\_fractional} remains available for boundary-precision
+use cases that justify the larger interface change to weight-aware metrics.
+
+\paragraph{Definition.} For each pixel $p$ on the model's native grid with
+spatial extent $A_p$:
+%
+\begin{equation}
+  m(p) =
+  \begin{cases}
+    1 & \text{if } A_p \cap \Omega \neq \emptyset, \\
+    0 & \text{otherwise},
+  \end{cases}
+\end{equation}
+%
+where $\Omega$ is the country polygon from GADM 4.1 (layer \texttt{ADM\_0}).
+The mask is computed against the full input grid; both the data and the mask
+are then cropped to a mask-aware bounding box (the smallest lat/lon box
+enclosing all $m(p)=1$ pixels, padded by one full cell on each side). The
+cropped data is masked with NaN where $m(p) = 0$:
+%
+\begin{equation}
+  d_{\text{crop}}(p) =
+  \begin{cases}
+    d(p) & \text{if } m(p) = 1, \\
+    \text{NaN} & \text{if } m(p) = 0.
+  \end{cases}
+\end{equation}
+
+\paragraph{Implementation.} \texttt{subselect.geom.crop} with
+\texttt{method="shapefile\_lenient"} (the default kwarg value); pinned by
+\texttt{tests/test\_geom.py::test\_lenient\_includes\_cell\_when\_polygon\_lands\_inside\_a\_single\_cell}
+and the overshoot-half-cell regression case alongside it.
+
+\paragraph{Decided.} 2026-04-30, package version 0.1.0.dev0.
+
 % =============================================================================
 \section{Caching and reproducibility}\label{sec:caching}
 % =============================================================================

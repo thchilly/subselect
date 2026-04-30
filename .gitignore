@@ -67,3 +67,8 @@ Icon?
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+documentation/*.pdf
+
+# M5 (and any future) review-figure outputs — derived from scripts/, not source.
+# The renderer scripts under scripts/ stay tracked.
+notebooks/exploratory/m5_cropping_review/
