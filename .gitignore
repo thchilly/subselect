@@ -1,0 +1,59 @@
+# Data — too large for git (677 GB raw + cache layer); managed out-of-band
+Data/
+
+# Legacy notebook directories — frozen, kept on disk for reference, tracked in
+# their own GitHub repos (thchilly/cmip6-greece, thchilly/cmip6-subsampling).
+# legacy/LEGACY.md itself is project documentation and stays tracked.
+legacy/cmip6-greece/
+legacy/climpact/
+
+# Cache & build artefacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual envs (the project uses a conda env named `subselect`; venvs would be local accidents)
+.venv/
+venv/
+env/
+
+# macOS / filesystem cruft
+.DS_Store
+._*
+Icon?
+.Spotlight-V100
+.Trashes
+
+# LaTeX build artefacts (methods.tex)
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz

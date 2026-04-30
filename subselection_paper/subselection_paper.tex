@@ -1,0 +1,934 @@
+%Version 3 December 2023
+% See section 11 of the User Manual for version history
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                 %%
+%% Please do not use \input{...} to include other tex files.       %%
+%% Submit your LaTeX manuscript as one .tex document.              %%
+%%                                                                 %%
+%% All additional figures and files should be attached             %%
+%% separately and not embedded in the \TeX\ document itself.       %%
+%%                                                                 %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%\documentclass[referee,sn-basic]{sn-jnl}% referee option is meant for double line spacing
+
+%%=======================================================%%
+%% to print line numbers in the margin use lineno option %%
+%%=======================================================%%
+
+%%\documentclass[lineno,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+
+%%======================================================%%
+%% to compile with pdflatex/xelatex use pdflatex option %%
+%%======================================================%%
+
+%%\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+
+
+%%Note: the following reference styles support Namedate and Numbered referencing. By default the style follows the most common style. To switch between the options you can add or remove Numbered in the optional parenthesis. 
+%%The option is available for: sn-basic.bst, sn-vancouver.bst, sn-chicago.bst%  
+ 
+%\documentclass[pdflatex,sn-nature]{sn-jnl}% Style for submissions to Nature Portfolio journals
+%%\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+%\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style 
+%%\documentclass[pdflatex,sn-mathphys-ay]{sn-jnl}% Math and Physical Sciences Author Year Reference Style
+%\documentclass[pdflatex,sn-aps]{sn-jnl}% American Physical Society (APS) Reference Style
+%\documentclass[pdflatex,sn-vancouver,Numbered]{sn-jnl}% Vancouver Reference Style
+%\documentclass[pdflatex,sn-apa]{sn-jnl}% APA Reference Style 
+
+%\documentclass[lineno,pdflatex,sn-chicago]{sn-jnl}% Chicago-based Humanities Reference Style
+\documentclass[pdflatex,sn-chicago]{sn-jnl}% Chicago-based Humanities Reference Style
+
+%%%% Standard Packages
+%%<additional latex packages if required can be included here>
+
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+
+\usepackage{tabularx}
+\usepackage{lineno}
+\linenumbers
+
+%\usepackage{orcidlink}
+
+\usepackage{hyperref}
+%\usepackage{academicons}
+%\definecolor{orcidlogocol}{HTML}{A6CE39}
+%\newcommand{\orcid}[1]{\href{https://orcid.org/#1}{\textcolor{orcidlogocol}{\aiOrcid}}}\usepackage{academicons}
+% \usepackage{xcolor}
+
+% \newcommand{\orcid}[1]{\href{https://orcid.org/#1}{\textcolor[HTML]{A6CE39}{\aiOrcid}}}
+
+% --- Relax float placement thresholds ---
+\setcounter{topnumber}{5}
+\setcounter{bottomnumber}{5}
+\setcounter{totalnumber}{10}
+
+\renewcommand{\topfraction}{0.97}       % allow big floats at top
+\renewcommand{\bottomfraction}{0.97}    % allow big floats at bottom
+\renewcommand{\textfraction}{0.03}      % allow very little text on float pages
+\renewcommand{\floatpagefraction}{0.85} % require less empty space on float-only pages
+
+% Two-column floats (figure*):
+\renewcommand{\dbltopfraction}{0.97}
+\renewcommand{\dblfloatpagefraction}{0.85}
+%%%%
+
+%%%%%=============================================================================%%%%
+%%%%  Remarks: This template is provided to aid authors with the preparation
+%%%%  of original research articles intended for submission to journals published 
+%%%%  by Springer Nature. The guidance has been prepared in partnership with 
+%%%%  production teams to conform to Springer Nature technical requirements. 
+%%%%  Editorial and presentation requirements differ among journal portfolios and 
+%%%%  research disciplines. You may find sections in this template are irrelevant 
+%%%%  to your work and are empowered to omit any such section if allowed by the 
+%%%%  journal you intend to submit to. The submission guidelines and policies 
+%%%%  of the journal take precedence. A detailed User Manual is available in the 
+%%%%  template package for technical guidance.
+%%%%%=============================================================================%%%%
+
+%% as per the requirement new theorem styles can be included as shown below
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%  meant for continuous numbers
+%%\newtheorem{theorem}{Theorem}[section]% meant for sectionwise numbers
+%% optional argument [theorem] produces theorem numbering sequence instead of independent numbers for Proposition
+\newtheorem{proposition}[theorem]{Proposition}% 
+%%\newtheorem{proposition}{Proposition}% to get separate numbers for theorem and proposition etc.
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+%%\unnumbered% uncomment this for unnumbered level heads
+
+\begin{document}
+
+%\title{Historical Assessment and Future Projections of the CMIP6 Ensemble in Simulating Greece's Climate}
+\title{Climate projections for Greece: Defining a regional sub-ensemble from the CMIP6 landscape}
+
+%%=============================================================%%
+%% GivenName	-> \fnm{Joergen W.}
+%% Particle	-> \spfx{van der} -> surname prefix
+%% FamilyName	-> \sur{Ploeg}
+%% Suffix	-> \sfx{IV}
+%% \author*[1,2]{\fnm{Joergen W.} \spfx{van der} \sur{Ploeg} 
+%%  \sfx{IV}}\email{iauthor@gmail.com}
+%%=============================================================%%
+
+
+
+% % Author Orchid ID: enter ID or remove command
+% {0000-0002-8443-6420} % Athanasios Tsilimigkras
+% {0000-0001-5877-4023} % Mihalis Lazaridis
+% {0000-0002-6656-4437} % Apostolos Voulgarakis
+% {0000-0002-9483-908X} % Konstantinos Varotsos
+% {0000-0001-7245-8414} % Anna Karali
+% {0000-0003-1822-7716} % Christos Giannakopoulos
+% {0000-0002-8650-4175} % Anastasios Stamou
+% {0000-0002-2999-7575} % Aristeidis Koutroulis
+
+
+\author*[1]{\fnm{Athanasios} \sur{Tsilimigkras} \orcid{https://orcid.org/0000-0002-8443-6420}}\email{atsilimigkras1@tuc.gr}
+\equalcont{These authors contributed equally to this work.}
+
+\author[1]{\fnm{Mihalis} \sur{Lazaridis} \orcid{https://orcid.org/0000-0001-5877-4023}}\email{mlazaridis@tuc.gr}
+
+\author[1]{\fnm{Apostolos} \sur{Voulgarakis} \orcid{https://orcid.org/0000-0002-6656-4437}}\email{avoulgarakis@tuc.gr}
+
+\author[2]{\fnm{Konstantinos} \sur{V. Varotsos} \orcid{https://orcid.org/0000-0002-9483-908X}}\email{varotsos@noa.gr}
+
+\author[2]{\fnm{Anna} \sur{Karali} \orcid{https://orcid.org/0000-0001-7245-8414}}\email{akarali@noa.gr}
+
+\author[2]{\fnm{Christos} \sur{Giannakopoulos} \orcid{https://orcid.org/0000-0003-1822-7716}}\email{cgiannak@noa.gr}
+
+\author[3]{\fnm{Anastasios} \sur{Stamou} \orcid{https://orcid.org/0000-0002-8650-4175}}\email{stamou@mail.ntua.gr}
+
+\author[1]{\fnm{Aristeidis} \sur{Koutroulis} \orcid{https://orcid.org/0000-0002-2999-7575}}\email{akoutroulis@tuc.gr}
+
+
+\equalcont{These authors contributed equally to this work.}
+
+\affil[1]{\orgdiv{School of Chemical and Environmental Engineering}, \orgname{Technical University of Crete}, \orgaddress{\street{Akrotiri Campus}, \city{Chania}, \postcode{73100}, \state{Crete}, \country{Greece}}}
+
+\affil[2]{\orgdiv{Institute for Environmental Research and Sustainable Development}, \orgname{National Observatory of Athens}, \orgaddress{\street{Lofos Koufou, Palaia Penteli}, \city{Athens}, \postcode{15236}, \state{Attica}, \country{Greece}}}
+
+\affil[3]{\orgdiv{School of Civil Engineering}, \orgname{National Technical University of Athens}, \orgaddress{\street{Zografou Campus}, \city{Athens}, \postcode{15772}, \state{Attica}, \country{Greece}}}
+
+
+
+%%==================================%%
+%% Sample for unstructured abstract %%
+%%==================================%%
+
+\abstract{Most climate change impact studies, regardless of scope, traditionally rely on a predefined set of climate model simulations without thoroughly examining representativeness, model skill, and diversity. This approach risks overlooking regional nuances and limits the utility of projections for tailored adaptation strategies. In the Mediterranean---and particularly Greece, where climate risks are high---addressing these limitations is essential for reliable, actionable projections. The CMIP6 ensemble is extensive, but its size and internal variability pose challenges for regional use, leaving users to navigate an ``ensemble of opportunity'' with interdependent models and diverse historical and future behaviors. Here we evaluate 35 CMIP6 models over Greece against bias-adjusted GSWP3-W5E5 observations, assessing both annual and seasonal historical performance with multiple diagnostics (correlation, standard deviation, CRMSE, bias, RMSE) and summarizing skill via a composite Historical Performance Score (HPS): the harmonic mean of Taylor Skill Score (pattern fidelity) and a variability-aware bias score that penalizes systematic offsets relative to observed interannual variability. Future responses are analyzed for 2081--2100 (high-emission Shared Socioeconomic Pathway SSP5-8.5) using a quadrant framework based on temperature change (\(\Delta\)\texttt{tas}) and late-century precipitation (\texttt{pr}); changes in maximum temperature (\(\Delta\)\texttt{tasmax}) are also incorporated to characterize the amplification of hot conditions. By integrating model performance and ensemble spread, the methodology refines model selection to balance historical credibility with diversity of future outcomes, enabling compact regional sub-ensembles that capture the range from moderate to severe warming and from drier to wetter states. Results show that historical skill does not necessarily translate into capturing future extremes in warming or drying, but a carefully chosen sub-ensemble can maximize the range of \(\Delta\)\texttt{tas} and \texttt{pr} outcomes while retaining high HPS. The EURO-CORDEX CMIP6 driving subset reflects central tendencies and underrepresents warmer-wetter boundary futures; at the same time, roughly half of its driving GCMs rank among the strongest historical performers for Greece by HPS, while the remainder are comparatively weak. These findings underscore the need for tailored, performance-and-spread-aware selection strategies to navigate complex multi-model ensembles in regional climate studies.}
+
+
+
+%%================================%%
+%% Sample for structured abstract %%
+%%================================%%
+
+% \abstract{\textbf{Purpose:} The abstract serves both as a general introduction to the topic and as a brief, non-technical summary of the main results and their implications. The abstract must not include subheadings (unless expressly permitted in the journal's Instructions to Authors), equations or citations. As a guide the abstract should not exceed 200 words. Most journals do not set a hard limit however authors are advised to check the author instructions for the journal they are submitting to.
+% 
+% \textbf{Methods:} The abstract serves both as a general introduction to the topic and as a brief, non-technical summary of the main results and their implications. The abstract must not include subheadings (unless expressly permitted in the journal's Instructions to Authors), equations or citations. As a guide the abstract should not exceed 200 words. Most journals do not set a hard limit however authors are advised to check the author instructions for the journal they are submitting to.
+% 
+% \textbf{Results:} The abstract serves both as a general introduction to the topic and as a brief, non-technical summary of the main results and their implications. The abstract must not include subheadings (unless expressly permitted in the journal's Instructions to Authors), equations or citations. As a guide the abstract should not exceed 200 words. Most journals do not set a hard limit however authors are advised to check the author instructions for the journal they are submitting to.
+% 
+% \textbf{Conclusion:} The abstract serves both as a general introduction to the topic and as a brief, non-technical summary of the main results and their implications. The abstract must not include subheadings (unless expressly permitted in the journal's Instructions to Authors), equations or citations. As a guide the abstract should not exceed 200 words. Most journals do not set a hard limit however authors are advised to check the author instructions for the journal they are submitting to.}
+
+\keywords{CMIP6, Climate Model Selection, Greece Climate Projection}
+
+\maketitle
+
+\section{Introduction}\label{sec1}
+The assessment and projection of climate change impacts have become a cornerstone of climate science, informing policy decisions and adaptation strategies worldwide. Global climate models (GCMs), which simulate Earth’s climate under different greenhouse gas concentration pathways, are instrumental in these efforts. The Coupled Model Intercomparison Project (CMIP), initiated to standardize and coordinate climate modeling efforts across institutions, has played a pivotal role in advancing our understanding of climate processes. The latest phase, CMIP6, provides an extensive ensemble of models, integrating scientific advances and enhanced computational capabilities to offer a nuanced view of past, present, and future climate dynamics \citep{Seker2022, Coppola2020}. CMIP6 data are critical for international climate assessments, such as those conducted by the Intergovernmental Panel on Climate Change (IPCC), as they encapsulate a wide range of climate projections under multiple socio-economic and emission scenarios. However, while global-scale models are foundational for understanding large-scale climate patterns, their direct application to smaller, geographically unique regions such as Greece can pose challenges \citep{Arjdal2023, Ezzaher2023}.
+
+The Mediterranean region, including Greece, is recognized as a climate change hotspot, facing unique vulnerabilities due to its distinct climate system characterized by warm, dry summers and mild, wet winters \citep{Coppola2020, Lionello2012}. Recent studies project increased risks of extreme weather events, prolonged droughts, and shifting precipitation patterns in the Mediterranean, largely driven by anthropogenic warming \citep{Mesta2021, Todaro2022}. For Greece, these projected changes are expected to exacerbate existing environmental stresses, affecting water resources, agriculture, and ecosystems \citep{Katopodis2021, Giuntoli2020}. As such, there is an urgent need for region-specific climate assessments that can inform adaptation planning and mitigate future risks. However, applying global model outputs directly to Greece is complicated by resolution limitations and by the fact that GCMs often produce divergent projections for small regions, introducing uncertainty into regional impact studies \citep{Conte2020, Arjdal2023}. Consequently, there is a pressing need to refine model selection to achieve an ensemble that both represents the range of potential climate responses and is computationally feasible for high-resolution regional analyses \citep{Seker2022, Kim2020}.
+
+A common approach in regional climate studies is to select a subset of models from the broader CMIP ensemble. Such sub-selection is essential for reducing computational demands and allowing for more focused analyses that capture region-specific climatic characteristics. However, existing regional initiatives, such as EURO-CORDEX \citep{Jacob2013,euro-cordex}, often include a limited number of driving GCMs that may not encompass the full diversity of possible climate responses of the full CMIP ensemble, potentially biasing projections towards specific outcomes \citep{Mesta2021, Brogli2021}. For regions such as Greece, where understanding both warming and hydrological variability is critical, maximizing the diversity of climate change signals within a selected model subset is essential to provide a balanced view of potential climate futures \citep{Allam2020, Arjdal2023}. A comprehensive model selection process that maximizes this signal diversity is thus needed to ensure a robust foundation for regional adaptation planning and risk assessment \citep{Coppola2020, Seker2022}.
+
+Several studies have assessed climate change impacts in Greece or broader Mediterranean areas, but limitations persist. Studies by \citet{Katopodis2021} and \citet{Giuntoli2020}, for example, used climate models to examine temperature and precipitation trends, yet these works often relied on narrow model selections that may not fully represent the variability within the CMIP6 ensemble. Additionally, many regional assessments still rely on opportunistic model selection, often overlooking the need for a representative spread of climate sensitivities \citep{Conte2020, Kim2020}. While recent efforts have established robust frameworks for model categorization and sub-selection in other regions \citep{Ruosteenoja2021, Hausfather2022, Nolan2023}, a dedicated, performance-informed selection framework specifically tailored to the complex topography and dual-regime climate of Greece remains necessary. Addressing these gaps is essential to develop adaptive strategies that are responsive to a wider range of potential outcomes, from moderate warming to severe drought scenarios \citep{Mesta2021, Arjdal2023}. In this study, we aim to fill these gaps by evaluating an extensive ensemble of CMIP6 models for Greece, categorizing them based on their future temperature and precipitation projections under the high-emission Shared Socioeconomic Pathway (SSP) 5-8.5 scenario \citep{ONeill2016}, and identifying a representative subset that captures the diversity of climate responses \citep{Seker2022, Coppola2020}.
+
+The objective of this study is to assess the CMIP6 ensemble's utility for climate impact studies in Greece and to establish a framework for selecting a subset that represents the ensemble’s spread of projected changes. Building on spread-aware sub-selection concepts \citep{Giuntoli2020,Brogli2021}, we classify models by end-century temperature change (\(\Delta\)\texttt{tas}) and late-century precipitation (\texttt{pr}) under SSP5-8.5, and include changes in maximum temperature (\(\Delta\)\texttt{tasmax}) to characterize the amplification of hot conditions. We summarize historical performance with a composite Historical Performance Score (HPS) that combines pattern fidelity (Taylor Skill Score) and a variability-aware bias score. This performance-and-spread framework supports compact, application-ready sub-ensembles that preserve both credibility and diversity for Greece, providing a robust foundation for evaluating regional risks and guiding the development of effective climate adaptation measures. Our approach enables researchers to tailor model selections to specific research goals, such as drought analysis, thereby maximizing the diversity of climate change signals within the subset.
+
+
+
+\section{Data and Methods}\label{sec2}
+\subsection{The 6th Phase of the Coupled Model Intercomparison Project}
+The Coupled Model Intercomparison Project Phase 6 (CMIP6) represents a significant milestone in climate modeling, initiated to enhance our understanding of past, present, and future climate changes. CMIP6, which began in 2014, builds upon previous phases of the CMIP project, incorporating advances in climate modeling and computational power. The primary aim of CMIP6 is to provide a comprehensive framework for comparing climate models and understanding their projections under various future scenarios. This ongoing project has been pivotal in informing international climate assessments, such as those conducted by the IPCC, and plays a crucial role in guiding policy decisions related to climate change mitigation and adaptation \citep{Eyring-2016}. CMIP6 comprises over 100 global climate models developed by more than 50 climate research centers worldwide. These models simulate the Earth's climate system, including its atmosphere, oceans, land surface, and cryosphere, under a variety of scenarios. The diversity and number of models in CMIP6 allow for robust multi-model ensemble analyses, which are essential for assessing the range and uncertainties of climate projections. Each model in CMIP6 contributes uniquely to the ensemble, providing a rich dataset for understanding the complexities of climate dynamics and the potential impacts of different greenhouse gas concentration pathways \citep{Eyring-2016}.
+
+For this study, CMIP6 model data were primarily obtained from the KNMI Climate Explorer (\url{https://climexp.knmi.nl}). In total, 40 CMIP6 models were available through this portal. We sourced monthly data for four near-surface variables: surface air temperature (\texttt{tas}), maximum near-surface air temperature (\texttt{tasmax}), precipitation (\texttt{pr}), and sea level pressure (\texttt{psl}). Models were retained for the core analysis if they satisfied the following criteria:
+\begin{itemize}
+  \item Availability of the three core variables: \texttt{tas}, \texttt{pr}, and \texttt{psl}.%
+  \item Availability of the high-emission scenario SSP5-8.5.
+\end{itemize}
+
+Based on these criteria, 35 CMIP6 models were selected (Table~\ref{cmip6_models_table}). These models span a range of spatial resolutions and are developed by various leading climate research institutions. Model resolution reported in Table~\ref{cmip6_models_table} refers to the nominal grid spacing at the equator derived from the downloaded fields. All data were at monthly time steps. The historical period covers 1850--2014; from 2015 to 2100, simulations follow the prescribed concentration pathways. Data preparation included unit checks, harmonization of calendars and time stamps to month starts, and resampling to annual values where required (e.g., for warming-level diagnostics). The breadth of the ensemble allows a comprehensive sampling of physically plausible futures for Greece.
+
+While \texttt{tasmax} is used in this work for certain diagnostics (e.g., graphical sizing in future spread plots), its availability was not enforced as a hard selection criterion for the 35-model core set above. Among those 35 models, \texttt{tasmax} was available for 26 via KNMI. For six models---{CAMS-CSM1-0}, {FIO-ESM-2-0}, {HadGEM3-GC31-LL}, {HadGEM3-GC31-MM}, {KACE-1-0-G}, and {NorESM2-MM}---{\texttt{tasmax}} files were sourced from Earth System Grid Federation (ESGF) nodes and preprocessed to match the KNMI data conventions (chiefly time-axis harmonization/rescaling so that monthly means align with month starts). For three models---{CESM2}, {CESM2-WACCM}, and {FGOALS-f3-L}---no \texttt{tasmax} data were available for the future period under SSP5-8.5; these models are retained in the analysis, and any figures or diagnostics that depend on \texttt{tasmax} explicitly indicate missing values for them.
+
+
+\begin{table*}
+\footnotesize 
+\caption{List of CMIP6 models used in the analysis.\label{cmip6_models_table}}
+\centering
+\resizebox{\textwidth}{!}{
+\begin{tabularx}{1.27\textwidth}{p{.5cm} p{2.6cm} p{1.1cm} p{5.7cm} p{1.5cm} l}
+\toprule
+\textbf{No.} & \textbf{Model} & \textbf{Variant} & \textbf{Institution} & \textbf{Resolution} & \textbf{Source} \\\midrule
+1 & ACCESS-CM2 & r1i1p1f1 & \multirow{2}{=}{Commonwealth Scientific and Industrial Research Organization (Australia)} & 1.9° × 1.3° & \citet{ACCESS-CM2} \\
+2 & ACCESS-ESM1-5 & r1i1p1f1 & & 1.9° × 1.3° & \citet{ACCESS-ESM1} \\
+\midrule
+3 & AWI-CM-1-1-MR & r1i1p1f1 & Alfred Wegener Institute, Helmholtz Centre for Polar and Marine Research (Germany) & 0.9° × 0.9° & \citet{AWI-CM-1-1} \\
+\midrule
+4 & BCC-CSM2-MR & r1i1p1f1 & Beijing Climate Center (China) & 1.1° × 1.1° & \citet{BCC-CSM} \\
+\midrule
+5 & CAMS-CSM1-0 & r1i1p1f1 & Chinese Academy of Meteorological Sciences (China) & 1.1° × 1.1° & \citet{CAMS-CSM1} \\
+\midrule
+6 & CanESM5 & r1i1p1f1 & \multirow{2}{=}{Canadian Centre for Climate Modelling and Analysis (Canada)} & 2.8° × 2.8° & \citet{CanESM5} \\
+7 & CanESM5-CanOE & r1i1p2f1 & & 2.8° × 2.8° & \citet{CanESM5-CanOE} \\
+\midrule
+8 & CESM2 & r1i1p1f1 & \multirow{2}{=}{National Center for Atmospheric Research (USA)} & 1.3° × 0.9° & \citet{CESM2} \\
+9 & CESM2-WACCM & r1i1p1f1 & & 1.3° × 0.9° & \citet{CESM2-WACCM} \\
+\midrule
+10 & CIESM & r1i1p1f1 & Department of Earth System Science, Tsinghua University (China) & 1.3° × 0.9° & \citet{CIESM} \\
+\midrule
+11 & CMCC-CM2-SR5 & r1i1p1f1 & Fondazione Centro Euro-Mediterraneo sui Cambiamenti Climatici (Italy) & 1.3° × 0.9° & \citet{CMCC-CM2-SR5} \\
+\midrule
+12 & CNRM-CM6-1 & r1i1p1f2 & \multirow{3}{=}{Centre National de Recherches Meteorologiques (France)} & 1.4° × 1.4° & \multirow{2}{=}{\citet{CNRM-CM6-1}} \\
+13 & CNRM-CM6-1-HR & r1i1p1f2 & & 0.5° × 0.5° &  \\
+14 & CNRM-ESM2-1 & r1i1p1f2 & & 1.4° × 1.4° & \citet{CNRM-ESM2-1} \\
+\midrule
+15 & EC-Earth3 & r1i1p1f1 & \multirow{2}{=}{European Center Earth Consortium (Europe)} & 0.7° × 0.7° & \multirow{2}{=}{\citet{EC-Earth3}} \\
+16 & EC-Earth3-Veg & r1i1p1f1 & & 0.7° × 0.7° &  \\
+\midrule
+17 & FGOALS-f3-L & r1i1p1f1 & \multirow{2}{=}{Chinese Academy of Sciences (China)} & 1.3° × 1.0° & \citet{FGOALS-f3} \\
+18 & FGOALS-g3 & r1i1p1f1 & & 2.0° × 2.0° & \citet{FGOALS-g3} \\
+\midrule
+19 & FIO-ESM-2-0 & r1i1p1f1 & First Institute of Oceanography, Ministry of Natural Resources, Qingdao National Laboratory for Marine Science and Technology (China) & 1.3° × 0.9° & \citet{FIO-ESM-2} \\
+\midrule
+20 & GFDL-ESM4 & r1i1p1f1 & NOAA Geophysical Fluid Dynamics Laboratory (USA) & 1.3° × 1.0° & \citet{GFDL-ESM4} \\
+\midrule
+21 & GISS-E2-1-G & r1i1p3f1 & Goddard Institute for Space Studies (USA) & 2.5° × 2.0° & \citet{GISS‐E2} \\
+\midrule
+22 & HadGEM3-GC31-LL & r1i1p1f3 & \multirow{2}{=}{Met Office Hadley Centre (UK)} & 1.9° × 1.3° & \multirow{2}{=}{\citet{HadGEM3-GC31}} \\
+23 & HadGEM3-GC31-MM & r1i1p1f3 & & 0.8° × 0.6° &  \\
+\midrule
+24 & INM-CM4-8 & r1i1p1f1 & \multirow{2}{=}{Institute for Numerical Mathematics (Russia)} & 2.0° × 1.5° & \citet{INM-CM48} \\
+25 & INM-CM5-0 & r1i1p1f1 & & 2.0° × 1.5° & \citet{INM-CM5} \\
+\midrule
+26 & IPSL-CM6A-LR & r1i1p1f1 & Institut Pierre Simon Laplace (France) & 2.5° × 1.3° & \citet{IPSL‐CM6A} \\
+\midrule
+27 & KACE-1-0-G & r1i1p1f1 & National Institute of Meteorological Sciences, Korea Meteorological Administration (Korea) & 1.9° × 1.3° & \citet{KACE-1} \\
+\midrule
+ & & & \multirow{5}{=}{Japan Agency for Marine-Earth Science and Technology, Atmosphere and Ocean Institute, The University of Tokyo, National Institute for Environmental Studies, and RIKEN Center for Computational Science (Japan)}& & \\
+28 & MIROC-ES2L & r1i1p1f2 & & 2.8° × 2.8° & \citet{MIROC-ES2L} \\
+ & & & & & \\
+29 & MIROC6 & r1i1p1f1 & & 1.4° × 1.4° & \citet{MIROC6} \\
+ & & & & \\
+\midrule
+30 & MPI-ESM1-2-HR & r1i1p1f1 & \multirow{2}{=}{Max Planck Institute for Meteorology (Germany)} & 0.9° × 0.9° & \citet{MPI-ESM1.2-HR} \\
+31 & MPI-ESM1-2-LR & r1i1p1f1 & & 1.9° × 1.9° & \citet{MPI‐ESM1.2-LR} \\
+\midrule
+32 & MRI-ESM2-0 & r1i1p1f1 & Meteorological Research Institute (Japan) & 1.1° × 1.1° & \citet{MRI-ESM2} \\
+\midrule
+33 & NESM3 & r1i1p1f1 & Nanjing University of Information Science and Technology (China) & 1.9° × 1.9° & \citet{NESM3} \\
+\midrule
+34 & NorESM2-MM & r1i1p1f1 & Norwegian Climate Centre (Norway) & 1.3° × 0.9° & \citet{NorESM2} \\
+\midrule
+35 & UKESM1-0-LL & r1i1p1f2 & Met Office Hadley Centre (UK) & 1.9° × 1.3° & \citep{UKESM1} \\
+\bottomrule
+\end{tabularx}}
+\end{table*}
+
+
+\subsection{Observational Data: The GSWP3-W5E5 dataset from ISIMIP}
+To assess the historical performance of the CMIP6 models, we utilized atmospheric data for temperature, precipitation, and sea-level pressure from the GSWP3-W5E5 dataset, provided by the Inter-Sectoral Impact Model Intercomparison Project (ISIMIP). The GSWP3-W5E5 dataset is available at a 0.5° spatial resolution and covers the period from 1901 to 2019 \citep{Lange-ISIMIP-2023}. This comprehensive dataset integrates the GSWP3 v1.09 and W5E5 v2.0 datasets, ensuring high-quality, bias-adjusted atmospheric data for robust model evaluation.
+
+The GSWP3 dataset, developed by Hyungjun Kim with support from the Japan Society for the Promotion of Science KAKENHI \citep{Dirmeyer-GSWP3-2006}, is a dynamically downscaled and bias-adjusted version of the Twentieth Century Reanalysis version 2 (20CRv2; \citet{Compo-2011}). It provides historical climate data that have been adjusted to correct biases inherent in the reanalysis product. The W5E5 dataset, described by \citet{Cucchi-2020} and \citet{Lange-WFFE5-2021}, is based on the latest European Reanalysis (ERA5; \citet{Hersbach-ERA5-2020}) and offers a high-resolution, bias-adjusted climate dataset for recent decades. To create the GSWP3-W5E5 dataset, W5E5 data from 1979 to 2019 was combined with GSWP3 data from 1901 to 1978, which had been bias-adjusted towards W5E5 using the ISIMIP3BASD v2.5.1 methodology \citep{Lange-ISIMIP3BASD-2019, Lange-ISIMIP3BASD-2020}. This bias adjustment method helps to reduce discontinuities at the 1978/1979 transition, ensuring a more consistent long-term dataset.
+
+In preparation for computing the CMIP6 models’ performance metrics, the GSWP3-W5E5 dataset was resampled to match each model’s native resolution. For temperature and sea-level pressure, the nearest neighbour interpolation method was employed, which preserves the original data values by mapping each grid point to the nearest model grid point. For precipitation data, the conservative remapping method was used \citep{Jones-1999}. This method is particularly suitable for variables such as precipitation because it preserves the integral of the data between the source and target grids, ensuring accurate representation of fluxes. We prioritized remapping observations to the model grid (rather than the inverse) to avoid penalizing coarser models for failing to resolve sub-grid scale variability (representativeness error) that is intrinsic to the observational dataset but physically unresolved by the GCMs.
+
+By utilizing the high-quality, bias-adjusted GSWP3-W5E5 dataset and carefully resampling it to each model’s native resolution, we ensured that the performance metrics accurately reflect the models’ ability to simulate historical climate conditions. This robust evaluation forms the basis for selecting models that not only perform well historically but also provide reliable future climate projections.
+
+
+\subsection{Global and Regional Warming Levels}
+The concept of global warming levels (GWLs) was first adopted by the IPCC to provide a framework for understanding the impacts of various degrees of global temperature rise relative to the pre-industrial period  \citep{IPCC_2018_SR15}. Warming levels refer to specific global temperature thresholds reached relative to the pre-industrial baseline of 1850--1900. These levels are determined based on the average global temperature over a 20-year period to account for natural variability and provide a more accurate measure of long-term climate change.
+
+These thresholds are critical for assessing the impacts of climate change and for developing mitigation and adaptation strategies.
+
+In this study, we extend the concept of global warming levels to a country-specific context by calculating the warming levels for Greece. This approach allows for a detailed examination of the unique climate patterns of Greece and how they compare to global trends. Specifically, we calculated the warming levels for Greece for temperature increases of +1.5°C, +2.0°C, +3.0°C, and +4.0°C, from the pre-industrial baseline, under four different Shared Socioeconomic Pathways (SSPs): SSP1-2.6, SSP2-4.5, SSP3-7.0, and SSP5-8.5.
+
+The methodology for calculating these warming levels follows the approach outlined by \citet{Hauser-GWL-2022}. First, we calculated the spatial mean temperature of Greece, weighted by the cell area, and resampled the data to an annual time step. The baseline mean temperature for the period 1850--1900 was then subtracted from the time series for each model to obtain the temperature anomalies. The 20-year centered running mean was computed for each model to filter out interannual variability while preserving the transient warming signal. The crossing year is defined as the midpoint of the first 20-year window in which this smoothed anomaly exceeds the specified threshold. The warming level is defined as the 20-year period centered on this central year, with the start year being the central year minus 10 years and the end year being the central year plus 9 years. In this study, we report the warming levels in terms of the central year of this 20-year period. To represent the timing of crossing of different warming levels, we calculated the median of the central years across all models for each scenario. While GWLs are designed to enable pathway-agnostic comparisons, reporting the crossing timing provides crucial context regarding the rate of warming and the urgency required for regional adaptation.
+
+Models under lower emission scenarios (e.g., SSP1-2.6) reach specific warming levels later than those under higher emission scenarios (e.g., SSP5-8.5). Higher emission scenarios lead to a faster increase in temperatures, and consequently, the specified warming levels are reached sooner (IPCC, 2018). For higher temperature thresholds, some models under lower emission scenarios do not reach the specified warming level.
+
+
+
+\subsection{Evaluating Historical Performance of Climate Models}
+The historical performance of the CMIP6 models was evaluated over the recent past period, 1995--2014. The evaluation focused on four variables: surface air temperature (\texttt{tas}), precipitation (\texttt{pr}), sea-level pressure (\texttt{psl}), and maximum near-surface air temperature (\texttt{tasmax}). Models were assessed for both their annual and seasonal cycles (DJF=Dec--Jan--Feb, MAM=Mar--Apr--May, JJA=Jun--Jul--Aug, SON=Sep--Oct--Nov). Model and observed data were grouped by month to form monthly climatologies; the same procedure was applied within each season. For each variable, three primary metrics were computed on each model’s native grid over Greece: Pearson correlation coefficient (\textit{corr}), bias (\textit{bias}), and Root Mean Square Error (\textit{rmse}). These metrics formed the basis for Taylor diagrams and the Taylor Skill Score (TSS). Importantly, all three metrics (\textit{corr}, \textit{bias}, \textit{rmse}) were also computed for \texttt{tasmax}. However, \texttt{tasmax} was not included in the final cross-variable historical performance score to avoid overweighting temperature, given its close physical/statistical relationship with \texttt{tas} and the generally higher temperature skill. The \texttt{tasmax} field is nevertheless used in later diagnostics (e.g., marker sizing in future spread plots).
+
+\medskip
+\noindent\textbf{Notation.} All grid-wise metrics are computed at longitude \(\lambda\) and latitude \(\phi\), for a target period \(s\) with \(n_s\) months (annual: \(n_s=12\); seasonal: \(n_s=3\)). We denote the model and observed monthly climatological values by \(X_{\text{mod},i}(\lambda,\phi)\) and \(X_{\text{obs},i}(\lambda,\phi)\) for month \(i\in s\); their means over the \(n_s\) months are \(\overline{X}_{\text{mod}}(\lambda,\phi)\) and \(\overline{X}_{\text{obs}}(\lambda,\phi)\).
+
+\paragraph{\textbf{Grid-cell metrics}}
+The Pearson correlation coefficient describes the phase agreement of the climatological cycle (annual or seasonal) at a grid cell:
+\begin{equation}
+\label{eq:pearson}
+\text{corr}_s(\lambda,\phi) \;=\;
+\frac{\sum\limits_{i\in s} \bigl(X_{\text{mod},i}(\lambda,\phi) - \overline{X}_{\text{mod}}(\lambda,\phi)\bigr)\bigl(X_{\text{obs},i}(\lambda,\phi) - \overline{X}_{\text{obs}}(\lambda,\phi)\bigr)}
+{\sqrt{\sum\limits_{i\in s} \bigl(X_{\text{mod},i}(\lambda,\phi) - \overline{X}_{\text{mod}}(\lambda,\phi)\bigr)^2 \;
+       \sum\limits_{i\in s} \bigl(X_{\text{obs},i}(\lambda,\phi) - \overline{X}_{\text{obs}}(\lambda,\phi)\bigr)^2}} \, .
+\end{equation}
+
+The (signed) bias at a grid cell is the mean difference across the \(n_s\) months:
+\begin{equation}
+\label{eq:bias}
+\text{bias}_s(\lambda,\phi) \;=\; \frac{1}{n_s} \sum_{i\in s} \bigl( X_{\text{mod},i}(\lambda,\phi) - X_{\text{obs},i}(\lambda,\phi) \bigr) \, .
+\end{equation}
+
+The RMSE at a grid cell is
+\begin{equation}
+\label{eq:rmse}
+\text{rmse}_s(\lambda,\phi) \;=\; \sqrt{ \frac{1}{n_s} \sum_{i\in s} \bigl( X_{\text{mod},i}(\lambda,\phi) - X_{\text{obs},i}(\lambda,\phi) \bigr)^2 } \, .
+\end{equation}
+
+
+Where:
+\begin{itemize}
+    \item \textit{corr} represents the Pearson correlation coefficient.
+    \item \textit{bias} is the \emph{signed} mean difference (model minus observations) over the months forming the target period (annual or seasonal), indicating the systematic error of the model.
+    \item \textit{rmse} is the square root of the mean squared difference over the same months, indicating the magnitude of the model's error.
+    \item $X_{\text{mod},i}$ is the value of the $i$-th monthly mean of the model output variable.
+    \item $X_{\text{obs},i}$ is the value of the $i$-th monthly mean of the observational dataset variable.
+    \item $\overline{X}_{\text{mod}}$ is the mean of the model output variable across all monthly means.
+    \item $\overline{X}_{\text{obs}}$ is the mean of the observational dataset variable across all monthly means.
+    % \item $\sum\limits_{i=1}^{n}$ denotes the summation over all elements from month $i=1$ to $n$.
+\end{itemize}
+\vspace{1em}
+
+
+\paragraph{\textbf{Spatial aggregation of grid-wise metrics}}\label{para:spatial-agg}
+All diagnostics are first computed per grid cell as above. For visualization of systematic over-/underestimation, we present \emph{signed} bias maps using \(\text{bias}_s(\lambda,\phi)\) from Eq.~\eqref{eq:bias}. To report a single country value per model and season, we apply latitude-based area weights \(w(\lambda,\phi)\propto \cos\phi\) on the model grid. For RMSE, standard deviation, and correlation, we compute the weighted spatial mean of the grid-cell metric. Note that we retain the sign of the correlation coefficient during aggregation; consequently, any cancellation arising from regions with opposite-signed correlations serves to correctly penalize models that lack spatial coherence in their seasonal phase. To avoid cancellation of opposite-signed errors across space, the aggregated bias is formed as the \emph{mean absolute bias of the annual (or seasonal) mean field} (denoted hereafter as MAB):
+\begin{equation}
+\label{eq:mab_country}
+\mathrm{MAB}_{s}
+\;=\;
+\frac{\displaystyle \sum_{(\lambda,\phi)\in\Omega} w(\lambda,\phi)\,
+\bigl|\text{bias}_s(\lambda,\phi)\bigr|}
+{\displaystyle \sum_{(\lambda,\phi)\in\Omega} w(\lambda,\phi)} \, ,
+\end{equation}
+where \(\Omega\) is the set of grid cells within the country bounding box (weights normalized by the denominator). Thus, maps show the \emph{signed} seasonal-mean bias, while the scalar reported for each model/season uses \(|\text{bias}_s|\) in Eq.~\eqref{eq:mab_country} to prevent spatial cancellation.
+
+
+\paragraph{\textbf{Taylor Diagrams}} To provide a comprehensive visualization of model performance, Taylor diagrams were computed using the \emph{spatially aggregated} metrics. Introduced by \citet{Taylor2001}, these diagrams summarize the relationship between model outputs and observations by plotting:
+
+\begin{enumerate}
+    \item Correlation Coefficient (\textit{corr}): Calculated as Equation \ref{eq:pearson} and represented as the angular position on the diagram
+
+    \item Standard Deviation (\textit{std}): Represented as the radial distance from the origin, calculated using Equation \ref{eq:std}:
+    
+    \begin{equation}
+    \label{eq:std}
+    \text{std} = \sqrt{\frac{1}{n_s} \sum\limits_{i=1}^{n_s} (X_{\text{mod},i} - \overline{X}_{\text{mod}})^2}
+    \end{equation}
+
+    \item Centered Root Mean Square Error (CRMSE): Represented as concentric arcs, calculated using Equation \ref{eq:crmse}:
+    
+    \begin{equation}
+    \label{eq:crmse}
+    \text{crmse} = \sqrt{\frac{1}{n_s} \sum\limits_{i=1}^{n_s} \left[(X_{\text{mod},i} - \overline{X}_{\text{mod}}) - (X_{\text{obs},i} - \overline{X}_{\text{obs}})\right]^2}
+    \end{equation}
+\end{enumerate}
+
+The Taylor diagram plots each model as a point based on its \textit{corr}, \textit{std}, and \textit{crmse} relative to the reference observational dataset. Models closer to the observed reference point (star) demonstrate better agreement with observations.
+
+\vspace{1em}
+
+\paragraph{\textbf{Taylor Skill Score (TSS)}} 
+To summarize performance with a single metric we adopt the Taylor Skill Score (TSS) of \citet{Taylor2001}. Using the spatially aggregated metrics introduced above, let \(a=\text{std}/\text{std}_{\text{obs}}\). The score is
+\begin{equation}
+\label{eq:tss}
+\mathrm{TSS} \;=\; 
+\frac{4\,\bigl(1+\text{corr}\bigr)}
+{\bigl(a+1/a\bigr)^{2}\,\bigl(1+R_{0}\bigr)} \, .
+\end{equation}
+Following common practice, we set \(R_{0}=1\), so that \(0 \le \mathrm{TSS} \le 1\), with \(\mathrm{TSS}=1\) only when \(\text{corr}=1\) and \(a=1\) (i.e., \(\text{std}=\text{std}_{\text{obs}}\)). Some studies apply a more correlation-weighted variant \citep[e.g.,][]{Hirota2011},
+\[
+\mathrm{TSS}_{\mathrm{H11}} \;=\; 
+\frac{\bigl(1+\text{corr}\bigr)^{4}}{4\,\bigl(a+1/a\bigr)^{2}} \, ,
+\]
+but we retain the original Taylor formulation in Eq.~\eqref{eq:tss} to balance correlation and variance ratio symmetrically. Thus, the TSS provides a single measure of how well each model reproduces the observed spatial distribution and the amplitude of variability.
+
+
+\paragraph{\textbf{Variability-aware bias score (BVS)}}
+While the TSS captures pattern fidelity (correlation and variance ratio), it is insensitive to systematic offsets. Relying on TSS alone may therefore elevate models that reproduce spatial patterns yet retain substantial mean bias. To incorporate bias information in a scale-aware and comparable manner across variables and seasons, we define a bounded, unitless \emph{bias score} that normalizes the absolute bias by the observed interannual variability (denoted herafter as BVS).
+
+\medskip
+\noindent\textit{Interannual variability (reference scale).} For each grid cell \((\lambda,\phi)\) and period \(s\) (annual or a season), we compute an \emph{interannual} standard deviation from the observational record regridded to each model’s native grid. Let \(y\) be the index for years and \(I_s(y)\) be the set of months belonging to period \(s\) within year \(y\) (for DJF, December is assigned to the subsequent year so that each DJF spans a single season year).The grid-wise reference variability is
+\[
+\sigma_{s}^{\text{obs}}(\lambda,\phi)
+\;=\;
+\mathrm{std}_{y}\!\left(
+\frac{1}{|I_s(y)|}\sum_{i\in I_s(y)} X_{\text{obs},i}(\lambda,\phi)
+\right),
+\]
+i.e., the standard deviation across years of the seasonal (or annual) means at that grid cell. This interannual \(\sigma\) is distinct from the intra-annual (climatological) variability used in the Taylor diagrams and is computed separately for each season.
+
+\medskip
+\noindent\textit{Grid-wise bias score.} Starting from the signed grid-cell bias \(\text{bias}_s(\lambda,\phi)\) in Eq.~\eqref{eq:bias}, we construct a bounded score via a monotone transform of the bias-to-variability ratio:
+\begin{equation}
+\label{eq:bias_score_grid}
+\text{BVS}_s(\lambda,\phi)
+\;=\;
+\frac{1}{1 + \left(\dfrac{|\text{bias}_s(\lambda,\phi)|}
+{\max\{\sigma_{s}^{\text{obs}}(\lambda,\phi),\,\varepsilon\}}\right)^{p}},
+\end{equation}
+where \(p>0\) is a fixed exponent (held constant across variables/seasons) and \(\varepsilon\) is a small floor to avoid division by near-zero \(\sigma\). In this study, we used parameter values of $p=1.5$ and $\varepsilon=10^{-6}$. This mapping yields values in \((0,1]\): \(\text{BVS}=1\) when the bias is zero and decreases smoothly as \(|\text{bias}|/\sigma\) grows.
+
+\medskip
+\noindent\textit{Spatial aggregation.} The gridded bias score is converted to a single country value per model and season by cosine-latitude area weighting on the model grid:
+\[
+\text{BVS}_s
+\;=\;
+\frac{\displaystyle \sum_{(\lambda,\phi)\in\Omega} w(\lambda,\phi)\,
+\text{BVS}_s(\lambda,\phi)}
+{\displaystyle \sum_{(\lambda,\phi)\in\Omega} w(\lambda,\phi)} \,,
+\qquad w(\lambda,\phi)\propto \cos\phi.
+\]
+Unlike the MAB in Eq.~\eqref{eq:mab_country}, which averages \(|\text{bias}|\), the bias score averages a \emph{normalized} and bounded field \(f\!\big(|\text{bias}|/\sigma^{\text{obs}}\big)\). This makes the result unitless, comparable across variables and seasons, and more penalizing where a given absolute bias is large relative to the observed year-to-year variability.
+
+\paragraph{\textbf{Historical performance score via harmonic mean}}\label{methods-hps}
+To merge pattern fidelity (TSS) and systematic offset (BVS) into a single, balanced indicator, we use a harmonic mean. For each season \(s\) and model, we first aggregate \emph{across variables} \(v\in\{\texttt{tas},\texttt{pr},\texttt{psl}\}\) (excluding \texttt{tasmax}):
+\[
+\overline{\mathrm{TSS}}_{s}=\mathrm{mean}_{v}\!\left(\mathrm{TSS}_{s}^{(v)}\right), 
+\qquad
+\overline{\text{BVS}}_{s}=\mathrm{mean}_{v}\!\left(\text{BVS}_{s}^{(v)}\right).
+\]
+Each composite is then min--max normalized \emph{across models} per season to \([0,1]\): \(x^{\ast}=(x-\min)/(\max-\min)\). We refer to the resulting metric as the \emph{Historical Performance Score} (HPS), defined as the harmonic mean
+\[
+\mathrm{HPS}_{s}
+\;=\;
+\frac{2\,\overline{\mathrm{TSS}}_{s}^{\,\ast}\,\overline{\text{BVS}}_{s}^{\,\ast}}
+{\overline{\mathrm{TSS}}_{s}^{\,\ast}+\overline{\text{BVS}}_{s}^{\,\ast}} \, ,
+\]
+which favors models that perform well on \emph{both} pattern fidelity and bias. Models are ranked by their annual \(\mathrm{HPS}\) (higher is better), with seasonal values also reported.
+
+
+\subsection{Projecting Future Climate and Categorizing Model Behaviors}
+In projecting future climate changes, individual climate models can exhibit diverse trajectories, with some models projecting warmer or drier conditions than others. Understanding the range of model projections within the CMIP6 ensemble is essential for selecting a representative subset of models for regional climate impact studies. This diversity in model behaviors allows for an informed sub-selection, where the chosen subset can either represent the full spread of the ensemble or be tailored towards specific climate impact interests (e.g., generally warmer and/or drier futures). Maximizing signal diversity within the subset is a key criterion, ensuring that the chosen models encapsulate the range of plausible future scenarios and thereby support robust adaptation planning.
+
+To capture the spread in projected change, we computed the end-of-century change in surface air temperature (\(\Delta\)\texttt{tas} = 2081--2100 minus 1850--1900) and the end-of-century mean precipitation (\texttt{pr}, 2081--2100). We also included maximum near-surface air temperature (\texttt{tasmax}) as an additional dimension, because changes in \texttt{tasmax} help characterize the intensity of hot conditions relevant for heat and drought risk assessment at a broad (seasonal/annual) scale. All projections use the high-emission SSP5-8.5 scenario. While we acknowledge that this scenario represents an extreme upper bound on future forcing \citep{Hausfather2020}, this pathway was selected because it most strongly expresses model-specific responses, thereby maximizing the observable spread in \(\Delta\)\texttt{tas}, \texttt{pr}, and \(\Delta\)\texttt{tasmax}. By employing the SSP5-8.5 scenario, we are able to assess the full potential range of future climate responses, making it an ideal basis for evaluating model diversity in a high-impact context.
+
+The ensemble of models is displayed on scatter plots with \(\Delta\)\texttt{tas} on the x-axis and \texttt{pr} on the y-axis (see visualization in Figure \ref{gr_annual_scatter}). For each panel (annual or a season), we draw dashed lines at the CMIP6 ensemble medians: a vertical line at median \(\Delta\)\texttt{tas} and a horizontal line at median \texttt{pr}. These lines partition the plot into four quadrants that provide a concise categorization of model behavior:
+\begin{itemize}
+    \item \textbf{Cooler-Wetter}: lower-than-median \(\Delta\)\texttt{tas}, higher-than-median \texttt{pr}. These models may suggest conditions that deviate from the typical warming and drying trends.
+    \item \textbf{Warmer-Wetter}: higher-than-median \(\Delta\)\texttt{tas}, higher-than-median \texttt{pr}. This combination may indicate shifts in seasonal precipitation or an increase in extreme rainfall events.
+    \item \textbf{Cooler-Drier}: lower-than-median \(\Delta\)\texttt{tas}, lower-than-median \texttt{pr}. A scenario that may imply moderate warming but with significant reduction in rainfall.
+    \item \textbf{Warmer-Drier}: higher-than-median \(\Delta\)\texttt{tas}, lower-than-median \texttt{pr}. Such projections suggest increased risk of severe drought, particularly relevant for regions such as Greece that are susceptible to hydrological stress under warming scenarios.
+\end{itemize}
+This quadrant view is descriptive of the CMIP6 ensemble behavior over Greece and is applied analogously to seasonal panels (DJF, MAM, JJA, SON) using season-specific medians.
+
+\noindent\textit{Encoding \texttt{tasmax}.} Each model’s marker carries information on \(\Delta\)\texttt{tasmax}. A fixed, common-size dashed ring denotes the ensemble-median \(\Delta\)\texttt{tasmax}. The filled disk area scales with the ratio \(\Delta\)\texttt{tasmax}\(_{\text{model}}\)/median\((\Delta\)\texttt{tasmax}\()\): if a model’s \(\Delta\)\texttt{tasmax} exceeds the ensemble median, the filled disk extends beyond the ring; if it is smaller, the fill lies inside the ring. This provides a compact indication of the relative amplification (or moderation) of hot conditions.
+
+This categorical approach provides a structured methodology for analyzing the projected climate variability between models and helps facilitate an informed selection of models that best capture the full spectrum of future potential climates for Greece. By including models from each quadrant, we can ensure that a selected subset represents a wide range of future conditions, supporting a comprehensive assessment of climate risks and a robust foundation for adaptation planning. The ability to select models that emphasize specific climate conditions, such as heightened drought risk or higher mean precipitation, further enables targeted studies that address particular adaptation needs, enhancing the flexibility and applicability of the CMIP6 ensemble for diverse research objectives. 
+
+\noindent\textit{Anchoring by historical skill.} To relate future spread to past credibility, each point is color-coded by the Historical Performance Score (HPS; Sec.~\ref{methods-hps}). For the annual panel we use the annual HPS. For seasonal panels (\(s\in\{\mathrm{DJF},\mathrm{MAM},\mathrm{JJA},\mathrm{SON}\}\)), colors reflect the \emph{seasonal} HPS and are min--max normalized across models \emph{within} each season; each subplot therefore carries its own color range. This design emphasizes season-specific model skill and supports season-by-season model selection; colors are not intended for cross-season comparison.
+
+This methodology allows for the evaluation of other model subsets, such as those used in regional initiatives such as EURO-CORDEX. The results of these comparisons are discussed in Subsection \ref{cordex}. EURO-CORDEX, the European branch of the CORDEX initiative, aims to provide high-resolution regional climate simulations by downscaling global climate models from the CMIP \citep{Jacob2013}. The next phase of EURO-CORDEX, EURO-CORDEX CMIP6 will focus on downscaling CMIP6 models. \citet{euro-cordex}, in their white paper, identified six driving GCMs for this effort: CMCC-CM2-SR5 (11), CNRM-ESM2-1 (14), EC-Earth3-Veg (16), MIROC6 (29), MPI-ESM1-2-HR (30), and NorESM2-MM (34). By examining the EURO-CORDEX CMIP6 subset's positioning within the scatter plots, we can assess its adaptability for climate studies in Greece and determine whether this subset sufficiently captures the diversity of the broader CMIP6 ensemble. Our approach thus provides a framework for evaluating both the broader ensemble and specific subsets, ensuring that selected models align with the diverse and complex future climate scenarios needed for regional risk assessments.
+
+\section{Results}\label{sec3}
+
+\subsection{Insights of Past and Future Climate over Greece}
+In this section, the climate over Greece is shown with figures of the transient change of temperature and precipitation from 1950 until the end of the 21st century.
+
+
+\subsubsection{Temperature}
+Figure~\ref{tas_change} illustrates the temperature projections for Greece, indicating a warming trend across all SSP scenarios. Under the high-emission SSP5-8.5 scenario, temperatures could increase by up to 5.3°C (3.4°C, 7.2°C) with the values in parentheses representing the 5th and 95th percentiles of the CMIP6 ensemble relative to the 1995--2014 average by the end of the century, demonstrating the most substantial warming. Conversely, the low-emission SSP1-2.6 pathway presents a more restrained increase or even stabilization, with an increase of 1.4°C (0.2°C, 2.5°C), emphasizing the effectiveness of net zero emissions after 2050. As shown in Table~\ref{tas_anom_table} near-term anomalies project a moderate temperature rise. Specifically, for the period 2021--2040, an increase of 1.0°C is anticipated under the low-emission SSP1-2.6 scenario, with the 5--95\% confidence interval suggesting a range between 0.6 and 1.4°C. The high-emission SSP5-8.5 scenario projects an increase of 1.1°C for the same period, with the confidence interval indicating a range between 0.6 and 1.6°C. Long-term projections further underscore the escalating nature of climate impacts, with average (5th and 95th percentile) increases of 1.4 (0.7, 2.3)°C and 4.6 (3.2, 6.2)°C for SSP1-2.6 and SSP5-8.5, respectively, by 2081--2100 relative to the recent past. Crucially, these projected changes indicate amplified warming over Greece relative to the global mean, with Greece typically reaching the same global thresholds earlier than the global median (Figure \ref{gr_gwl}).
+
+\begin{figure*}
+\centering
+\includegraphics[width=0.85\textwidth]{greece_tas_change.png}
+\caption{Surface air temperature change over Greece, relative to the 1995--2014 average (recent past; left axis) and relative to the 1850--1900 average (pre-industrial period; right axis; offset by 0.80°C). The historical data average is displayed by the black line and 5--95\% range with shading up to 2014. Post-2014 projections are based on different SSP scenarios, each represented by a line and accompanied by a shading indicating the 5--95\% range for SSP1-2.6 and SSP3-7.0. The vertical shaded areas represent three future periods: Near-term (2021--2040), Mid-term (2041--2060), and Long-term (2081--2100), highlighting temporal shifts in climate patterns. The numbers in parentheses within the legend denote the count of analyzed models for each respective scenario.\label{tas_change}}
+\end{figure*}    
+\unskip
+
+\begin{table*}
+\centering
+\caption{Temperature anomalies for Greece across near-term, mid-term, and long-term future periods, relative to both the recent past (1995--2014) and the pre-industrial (1850--1900) baselines. Multi-model averages of projected anomalies are listed alongside the 5--95\% confidence interval in parentheses for each time slice, followed by global averages for comparison. Each cell concludes with the count of CMIP6 models contributing to the data for the corresponding period and SSP scenario (SSP1-2.6, SSP2-4.5, SSP3-7.0, SSP5-8.5), encapsulating the breadth of future climate projections and the consensus within the ensemble.\label{tas_anom_table}}
+\includegraphics[width=0.9\textwidth]{greece_tas_anomalies_table_lined.png}
+\end{table*}    
+\unskip
+
+\subsubsection{Precipitation}
+%The transient signal of precipitation changes over Greece under different emission scenarios, spanning the period 1950--2100, is shown in Figure~\ref{pr_perc_change}. An overall decrease in precipitation is expected throughout the 21st century across all emission scenarios. By 2100, the SSP5-8.5 scenario suggests a change in precipitation patterns by -21.4\% (-34.9\%, -5.4\%), where the values in parentheses indicate the 5th and 95th percentiles of the projected changes relative to the 1995--2014 average. Conversely, the lower emission scenario, SSP1-2.6, predicts a more moderate change of -2.6\% (-16.7\%, 11.6\%). Insights from Table~\ref{pr_anom_table}, that in the near-term (2021--2040), projected precipitation under SSP1-2.6 decreases by -1.5\% with a 5--95\% range between -9.4\% and 8.1\%, while SSP5-8.5 estimates a decrease of -2.7\% with a 5--95\% range between -9.4\% and 4.4\%. For the long-term period (2081--2100), SSP1-2.6 scenario projects a precipitation change of -3.7\% (-14.4\%, 7.9\%), and the SSP5-8.5 scenario projects a change of -18.9\% (-29.7\%, -10.2\%). By the time Greece reaches +1.5°C, precipitation is anticipated to decrease by -1.8\% (-8.6\%, 3.1\%) under SSP1-2.6 (based on 34 models) and -2.7\% (-8.5\%, 2.7\%) under SSP5-8.5 (based on 35 models). At a warming level of +3.0°C, the changes are expected to be 1.4\% (-5.5\%, 13.1\%) for SSP1-2.6 and -9.5\% (-19.1\%, 1.5\%) for SSP5-8.5, based on 6 and 35 CMIP6 models respectively.
+The transient signal of precipitation changes over Greece under different emission scenarios, spanning the period 1950--2100, is shown in Figure~\ref{pr_perc_change}. An overall decrease in precipitation is expected throughout the 21st century across all emission scenarios. While near-term changes (2021--2040) remain relatively small under both scenarios, end-of-century projections show a pronounced divergence between pathways. For the long-term period (2081--2100), the SSP5-8.5 scenario projects a substantial precipitation decrease of -18.9\% (-29.7\%, -10.2\%), markedly stronger than the lower emission SSP1-2.6 scenario, which projects a more moderate change of -3.7\% (-14.4\%, 7.9\%). This intensification of drying is also evident at specific warming levels: by the time Greece reaches +1.5°C, precipitation is anticipated to decrease by -1.8\% under SSP1-2.6 and -2.7\% under SSP5-8.5. At a warming level of +3.0°C, the drying trend intensifies further, with expected changes of -9.5\% for SSP5-8.5 (based on 35 models). These results highlight increasing scenario dependence and widening ensemble spread toward the end of the century, consistent with the patterns summarized in Table~\ref{pr_anom_table}.
+
+\begin{figure*}
+\centering
+\includegraphics[width=0.85\textwidth]{greece_pr_percent_change.png}
+\caption{Projected precipitation percent change over Greece from the historical recent past baseline (1950--2014). The black line represents the historical percent change in precipitation, with the 5--95\% confidence range shown in shading. Post-2014, the SSP scenarios are plotted indicating future projections with the 5--95\% range for SSP1-2.6 and SSP3-7.0. The right y-axis shows the percent change relative to the pre-industrial period (1850--1900), adjusted by the baseline offset. A 10-year rolling average has been applied to smooth out short-term fluctuations and reveal underlying trends for clarity in the visual representation. Vertical shaded regions delineate the Near-term (2021--2040), Mid-term (2041--2060), and Long-term (2081--2100) future periods, illustrating the expected changes through the 21st century under different emission scenarios. The numbers in parentheses within the legend denote the count of analyzed models for each respective scenario.\label{pr_perc_change}}
+\end{figure*}    
+\unskip
+
+\begin{table*}
+\centering
+\caption{Precipitation anomaly (\%) over Greece across various future periods (near-term, mid-term, and long-term) and at distinct country-level warming levels (+1.5°C, +2.0°C, +3.0°C, and +4.0°C). Each change is relative to the recent past (1995--2014) and the pre-industrial baseline (1850--1900). For each time frame and warming level, the multi-model average anomalies and 5--95\% ranges, in parentheses, are presented first for Greece and subsequently for the global context, offering a comparative perspective. Each cell concludes with the count of CMIP6 models contributing to the data for the corresponding period and SSP scenario. The data spans across four SSP scenarios---SSP1-2.6, SSP2-4.5, SSP3-7.0, and SSP5-8.5---illustrating an array of projected climatic shifts under varying socioeconomic trajectories.\label{pr_anom_table}}
+\includegraphics[width=0.95\textwidth]{greece_pr_percent_anomalies_table_lined.png}
+\end{table*}    
+\unskip
+
+
+\subsection{Warming levels over Greece}
+Understanding the regional climate impacts associated with specific global warming levels (GWLs), such as 1.5°C, 2°C or higher, is critical for effective adaptation planning and policy development \citep{Betts2018}. These warming levels not only provide a framework for exploring potential hydrological and ecological changes but also highlight the influence of global climate policies in determining the severity of future impacts. Framing regional climate assessments in terms of GWLs offer valuable insights into the risks that may be avoided or mitigated with timely and robust adaptation strategies. As a case study, Greece provides a critical perspective on the timing and magnitude of significant temperature thresholds (Figure~\ref{gr_gwl}). Under SSP1-2.6, the scenario that aligns with stringent mitigation strategies, the median projection for reaching the 1.5°C warming level occurs by 2026, with 34 models concurring. For the more severe warming level of 3.0°C under the same scenario, the median year is projected as 2050 by 6 models. On the other hand, under the high-emission scenario of SSP5-8.5, the median years for reaching the 1.5°C and 3.0°C thresholds are 2025 and 2056, based on 35 models in both cases. These projections illustrate the range of potential future climates for Greece, reflecting the critical impact of policy decisions and emission pathways. Comparatively, the global median years, marked by the black diamonds, serve as a benchmark, indicating how the regional climate trajectory of Greece aligns with global trends, thus highlighting the shared challenges and the necessity for global cooperation in climate change adaptation and mitigation. The observed warming levels, manifesting earlier than the global median, signify an accelerated climate response within this region. The rate of warming surpasses global projections, underscoring an imperative for immediate and decisive climate policies. This trend not only underscores the vulnerability of Greece to a changing climate but also amplifies the call for tailored adaptation measures that can mitigate the risks associated with such rapid environmental transformations.
+
+\begin{figure*}
+\centering
+\includegraphics[width=0.8\textwidth]{greece_gwls_boxplot.png}
+\caption{Warming levels for Greece, showcasing the years each CMIP6 model projects crossing specific global temperature thresholds (+1.5°C, +2.0°C, +3.0°C, and +4.0°C) with regard to the pre-industrial period (1850--1900). The box and whisker plots represent the spread of years across models under different SSP scenarios, with the median value indicated by a horizontal bold line. Numbers to the right of each warming level denote the median year (across all models) reaching the respective temperature threshold, with the count of contributing models in parentheses. Black diamonds represent the global median year for each scenario and threshold, providing a reference for Greece's warming relative to global projections.\label{gr_gwl}}
+\end{figure*}    
+\unskip
+
+
+\subsection{Historical Performance Evaluation}\label{hist_perf_eval}
+To evaluate the ability of the CMIP6 model ensemble to realistically represent historical climate features over the study region, we examined surface air temperature (\texttt{tas}), precipitation (\texttt{pr}), and sea-level pressure (\texttt{psl}) over 1995--2014. For completeness, the same diagnostics were also computed for maximum temperature (\texttt{tasmax}); \texttt{tasmax} results are shown in the Appendix and are used later in the future spread analysis, but are not included in the multi-variable historical score to avoid overweighting temperature. Figure \ref{gr_tas_bias} provides a spatial representation of the temperature bias across the 35 selected CMIP6 models. The top panel illustrates the observed mean temperature distribution over Greece based on the GSWP3-W5E5 dataset, which serves as the reference for bias calculations. Below, individual bias maps for each model reveal discrepancies relative to observed data, with models ordered by their \emph{mean absolute bias (MAB)} (Eq.~\ref{eq:mab_country}) from left to right and top to bottom, placing lower-MAB (better) models first.
+
+
+The results indicate that 24 out of the 35 models, representing nearly 70\% of the ensemble, overestimate temperatures across Greece, which is also shown in Figure \ref{gr_tas_perf}. This positive bias is particularly concentrated over central and northern Greece, where overestimations are more pronounced. In contrast, models that tend to underestimate temperatures show a more distributed pattern of bias across the extent of Greece, without a consistent geographical concentration. Sea grid cells generally display less bias across models, with values closer to zero, suggesting a better alignment with observed temperatures in maritime regions.
+
+Models such as CNRM-CM6-1-HR, GISS-E2-1-G, EC-Earth3-Veg, and KACE-1-0-G show minimal biases, aligning closely with observed temperature patterns. Conversely, models such as CAMS-CSM1-0, CIESM, and the MIROC group exhibit substantial temperature biases, with deviations reaching up to $+8^{\circ}$C or $-4^{\circ}$C in some regions, primarily over the mainland. The bias scale, ranging from $-8^{\circ}$C to $+8^{\circ}$C, highlights the diversity in model performance and the challenges in accurately representing the temperature distribution across different parts of Greece.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.9\textwidth]{greece_tas_annual_bias.png}
+\caption{Annual mean surface air temperature bias for the CMIP6 ensemble over Greece for the period 1995--2014. The top panel shows the observed mean surface air temperature distribution over Greece, based on the GSWP3-W5E5 dataset. The subplots below display the spatial temperature bias of each of the 35 CMIP6 models compared to the observed data, arranged from left to right and top to bottom by ascending \emph{mean absolute bias (MAB)}, with better-performing models shown first. Each model retains its original resolution, with the observed data resampled to match the resolution of each respective model. The bias scale ranges from $-8$\,\textdegree C to $+8$\,\textdegree C, highlighting areas of overestimation and underestimation of temperature.\label{gr_tas_bias}}
+\end{figure} 
+
+
+Figure \ref{gr_pr_bias} presents the annual mean precipitation bias for each model in the CMIP6 ensemble over Greece for the period 1995--2014. Similar to the previous figure, the top panel shows the observed precipitation distribution from the GSWP3-W5E5 dataset, which serves as the baseline for model comparison. The subplots below illustrate the spatial precipitation bias for each of the 35 models, arranged by ascending \emph{mean absolute bias (MAB)} (Eq.~\ref{eq:mab_country}), with models showing lower biases (better performance) displayed first. The results indicate a strong tendency toward underestimation of precipitation across the ensemble, with 28 out of 35 models (around 80\%) simulating less precipitation than observed. This is particularly pronounced among models with greater absolute biases, which are mostly concentrated in the lower rows of the figure and predominantly show underestimations (indicated by the orange shading).
+
+Notably, regarding the annual precipitation cycle, the CMIP6 ensemble exhibits significant challenges in accurately simulating September precipitation, particularly failing to capture the timing of the first rains following the summer dry period (Figure \ref{gr_pr_perf}). This shortcoming underscores the models’ limitations in representing the onset of the rainy season, characteristic of the Mediterranean climate, which transitions from a dry summer to a wetter autumn. These inaccuracies are likely linked to difficulties in resolving the convective precipitation processes that dominate during this period.
+
+In terms of spatial patterns, models generally simulate precipitation over mainland Greece with better accuracy than over sea regions. While models with mixed bias patterns, such as MRI-ESM2-0, GFDL-ESM4, CNRM-ESM2-1, CNRM-CM6-1 and CNRM-CM6-1-HR, tend to overestimate precipitation over the mainland while underestimating it over the sea, most models exhibit a consistent underestimation across both regions. Although the CMIP6 ensemble demonstrates a degree of bias in representing precipitation amounts over Greece, particularly in the form of underestimation, careful model selection has the potential to mitigate this bias and improve the reliability of precipitation projections for regional applications.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.9\textwidth]{greece_pr_annual_bias.png}
+\caption{Annual mean precipitation bias for the CMIP6 ensemble over Greece for the period 1995--2014. The top panel shows the observed mean precipitation distribution over Greece, based on the GSWP3-W5E5 dataset. The subplots below illustrate the spatial precipitation bias of each of the 35 CMIP6 models compared to the observed data, arranged from left to right and top to bottom in ascending order of \emph{mean absolute bias (MAB)}, with models showing lower biases (better performance) displayed first. Each model maintains its original resolution, with the observed data resampled to match the resolution of each respective model. The bias scale ranges from $-4$ to $+4$\,mm\,d$^{-1}$, indicating areas where models overestimate or underestimate precipitation.\label{gr_pr_bias}}
+\end{figure}    
+
+
+Figure \ref{gr_psl_bias} presents the annual mean sea-level pressure bias for each CMIP6 model over Greece, covering the period 1995--2014. The observed mean \texttt{psl} from GSWP3-W5E5 appears in the top panel; the 35 models below are ordered by ascending \emph{mean absolute bias (MAB)} (Eq.~\ref{eq:mab_country}), so models in the upper-left of the grid have the smallest country-mean error magnitude. Because each model is shown on its native grid (with observations resampled accordingly), differences in effective resolution are visible across panels. 
+
+A clear split emerges in \texttt{psl}: 30 of 35 models (over 85\%) exhibit predominantly positive biases over Greece, whereas two models (MIROC6 and MIROC-ES2L) show widespread high-magnitude negative biases; the remainder display mixed local patterns. The lowest MAB values occur for CNRM-CM6-1-HR, AWI-CM-1-1-MR, KACE-1-0-G, and FGOALS-f3-L, whose biases are weak and spatially patchy. At the other end, high-MAB models show strong, spatially extensive departures (positive for many, strongly negative for the two MIROC models), with key takeaway being that CMIP6 models exhibit consistent challenges in accurately simulating sea-level pressure over Greece.
+
+
+\begin{figure}
+\centering
+\includegraphics[width=0.9\textwidth]{greece_psl_annual_bias.png}
+\caption{Annual mean sea-level pressure (\texttt{psl}) bias for the CMIP6 ensemble over Greece for the period 1995--2014. The top panel shows the observed mean sea-level pressure distribution over Greece, based on the GSWP3-W5E5 dataset. The subplots below display the spatial sea-level pressure bias of each of the 35 CMIP6 models relative to the observed data, arranged from left to right and top to bottom in ascending order of \emph{mean absolute bias (MAB)}. Each model retains its original resolution, with the observed data resampled to match the resolution of each respective model. The bias scale ranges from $-6$ to $+6$\,hPa, illustrating areas where models overestimate or underestimate sea-level pressure.\label{gr_psl_bias}}
+\end{figure}    
+\unskip
+
+
+
+\vspace{1em}
+\noindent\textbf{CMIP6 pattern fidelity assessment}
+
+The Taylor diagrams in Figure \ref{gr_taylor_plots} provide a comprehensive visualization of the CMIP6 ensemble's performance in simulating three key climate variables over Greece: surface air temperature (\texttt{tas}), precipitation (\texttt{pr}), and sea-level pressure (\texttt{psl}). These diagrams plot the standard deviation (radial axis), Pearson correlation coefficient (angle), and CRMSE (concentric contours) for each model, with the observed data represented by a reference point (star). Consistent with \citet{Taylor2001}, models closer to the observed reference exhibit higher accuracy, indicating a better match to historical observations. The top row presents the models’ performance for the annual averages of each variable, while the subsequent rows provide seasonal evaluations for winter (DJF), spring (MAM), summer (JJA), and autumn (SON), enabling detailed insights across timescales. A separate set of Taylor diagrams for maximum temperature (\texttt{tasmax}), annual and seasonal, appears in Appendix Figure~\ref{gr_taylor_tasmax_plot}.
+
+For surface air temperature, the ensemble demonstrates uniformly high pattern fidelity. Annual and seasonal correlations are consistently strong, with models effectively capturing the spatial gradients of the Greek climate. While the amplitude of variability shows some spread around the observed reference—particularly in winter—the overall agreement is robust. The transition seasons (spring and autumn) exhibit the highest consistency across metrics, whereas winter shows slightly larger divergence in model performance.
+
+Precipitation proves to be a more challenging variable for the ensemble. While the annual patterns are reasonably well-simulated, the seasonal breakdown reveals significant spread. The ensemble struggles most during the extreme seasons (summer and winter), where variance ratios diverge considerably from observations. This indicates that while the general distribution of rainfall is captured, the intensity and magnitude of precipitation events vary widely among models, underscoring the higher uncertainty associated with hydroclimatic projections compared to thermal ones.
+
+For sea-level pressure, the results highlight a contrast between pattern matching and amplitude scaling. Although the patterns (correlations) are generally reproduced with moderate-to-high skill, the models exhibit a substantial dispersion in spatial variance. This results in a wide range of CRMSE values, suggesting that while the placement of pressure systems is generally correct, the pressure gradients—and thus the circulation intensity—differ notably across the ensemble.
+
+Overall, the analysis confirms that model skill is variable-dependent: \texttt{tas} is simulated with high confidence, \texttt{pr} shows weaker fidelity with strong seasonal sensitivity, and \texttt{psl} is characterized by large spreads in amplitude. A detailed statistical breakdown of these metrics, including specific correlation coefficients and variance ratios for each season, is provided in \autoref{sec_appendix_stats}.
+
+\begin{figure*}
+\centering
+\includegraphics[width=.98\textwidth]{2greece_allTaylorPlots.png}
+
+\caption{Taylor diagrams illustrating the performance of 35 CMIP6 models over Greece for annual and seasonal (DJF, MAM, JJA, SON) periods. The top row presents Taylor diagrams for annual mean temperature, precipitation, and sea-level pressure. Each diagram plots the standard deviation, Pearson correlation coefficient, and centered Root Mean Square Error (CRMSE) contours, with models displayed as numbered markers. The closer a model is to the star (representing observations), the better its performance. The lower rows show Taylor diagrams for each season across the three variables, providing insight into seasonal model accuracy and variability. The combination of these diagrams allows for the comprehensive evaluation of model performance for different variables and temporal scales.\label{gr_taylor_plots}}
+
+\end{figure*}    
+\unskip
+
+\vspace{1em}
+
+\noindent\textbf{Historical performance rankings (HPS).}
+
+On the annual composite (Figure \ref{gr_hps_rankings}, top panel), the highest-ranked models by HPS are (16)~EC-Earth3-Veg, (30)~MPI-ESM1-2-HR, and (21)~GISS-E2-1-G, reflecting concurrently strong pattern fidelity (high TSS) and high BVS; the HPS curve then decays approximately linearly with rank, identifying no distinct ``elbow'' before the expected sharp drop-off at the very tail. At the lower end, (5)~CAMS-CSM1-0, (24)~INM-CM4-8, (11)~CMCC-CM2-SR5, (33)~NESM3, the MIROC pair (28,~29), and the CanESM5 variants (6,~7) exhibit weaker HPS owing to low TSS and/or depressed BVS. Notably, the two lowest-ranked models illustrate the strict penalty of the harmonic mean for single-metric failure: CAMS-CSM1-0 scores zero in BVS despite a moderate TSS (0.73), while INM-CM4-8 scores zero in TSS despite a reasonable BVS (0.66), resulting in a zero HPS for both. Seasonally (Figure \ref{gr_hps_rankings}, bottom panels), drop-offs are steeper: the leading few models separate clearly in each panel. Models with closest alignment to observations (by seasonal HPS) include (32)~MRI-ESM2-0, (13)~CNRM-CM6-1-HR, and (3)~AWI-CM-1-1-MR in DJF; (30)~MPI-ESM1-2-HR, (9)~CESM2-WACCM, and (32)~MRI-ESM2-0 in MAM; (21)~GISS-E2-1-G, (23)~HadGEM3-GC31-MM, and (34)~NorESM2-MM in JJA; and (21)~GISS-E2-1-G, (24)~INM-CM4-8, and (14)~CNRM-ESM2-1 in SON. Across panels, several models illustrate the intended trade-off captured by the harmonic mean: some achieve high TSS but lower BVS (good spatial patterns with sizable offsets) or vice versa, and therefore settle mid-rank. This ranking highlights which models best balance pattern fidelity and small, variability-aware bias, guiding the sub-ensemble selection that follows.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.85\textwidth]{greece_HPS_ranking.png}
+\caption{Historical performance score rankings (HPS) for CMIP6 models over Greece. \textbf{Top:} Annual composite across \texttt{tas}, \texttt{pr}, and \texttt{psl}. Models are sorted by descending annual Historical Performance Score (HPS; green triangles/line). Also shown are the min--max normalized Taylor Skill Score (TSS; pattern fidelity, blue circles/line) and the Bias--Variability Score (BVS; variability-aware bias, orange squares/line). Because HPS is the harmonic mean of TSS and BVS, it penalizes imbalance and tends to track the lower of the two component curves; high HPS occurs only when both TSS and BVS are high. \textbf{Bottom:} Seasonal panels (DJF, MAM, JJA, SON) show the same three scores per model, sorted by that season’s HPS; x-axes use model IDs for compactness (see Table~\ref{cmip6_models_table} for model ID definitions). Scores are on [0,1] and are min--max normalized across models within each panel (annual or each season).}
+\label{gr_hps_rankings}
+\end{figure*}  
+\unskip
+
+
+
+\subsection{Future model spread}
+To evaluate the range of future projections over Greece, we analyze the CMIP6 ensemble under SSP5-8.5 for the end-of-century (2081--2100). Spread is summarized (as visualized in Figure \ref{gr_annual_scatter}) with end-of-century surface air temperature change (\(\Delta\)\texttt{tas} = 2081--2100 minus 1850--1900; \(x\)-axis) and end-of-century mean precipitation (\texttt{pr}; \(y\)-axis). Maximum near-surface air temperature (\(\Delta\)\texttt{tasmax}) is encoded in the marker geometry: a fixed dashed ring denotes the CMIP6-ensemble median \(\Delta\)\texttt{tasmax}, while the filled disk area scales with the ratio \(\Delta\)\texttt{tasmax}\(_{\text{model}}\)/median\((\Delta\)\texttt{tasmax}\()\). Thus, fills larger (or smaller) than the ring indicate \(\Delta\)\texttt{tasmax} above (or below) the ensemble median. Colors indicate the annual Historical Performance Score (HPS; Sec.~\ref{methods-hps}), with brighter colors denoting higher historical skill.
+
+Figure~\ref{gr_annual_scatter} shows that \(\Delta\)\texttt{tas} spans roughly \(+3\)--\(7.5\,^{\circ}\mathrm{C}\) (ensemble median \(\approx 5.5\,^{\circ}\mathrm{C}\)), while \texttt{pr} ranges from \(\sim 0.9\) to \(1.8\,\mathrm{mm\,day^{-1}}\) (median \(\approx 1.2\,\mathrm{mm\,day^{-1}}\)). Dashed vertical and horizontal lines mark these medians and partition the space into cooler-wetter, warmer-wetter, cooler-drier, and warmer-drier quadrants. A clear tendency emerges: higher-HPS models cluster nearer the ensemble medians, whereas lower-HPS models are more frequently found at the edges of the distribution (i.e., the driest/wettest or coolest/warmest tails). The \(\Delta\)\texttt{tasmax} encoding largely co-varies with \(\Delta\)\texttt{tas}---marker fills increase monotonically from left to right---indicating that amplification of maximum temperatures broadly track mean warming. Top-performing models signal different responses; (16)~EC-Earth3-Veg lies on the warmer side near median \texttt{pr}; (30)~MPI-ESM1-2-HR is closer to the temperature-related ensemble medians with slightly drier \texttt{pr}; and (21)~GISS-E2-1-G is located in the cooler-drier part of the distribution. Conversely, boundary futures are indicated by lower-HPS models such as (6, 7)~CanESM5/CanESM5-CanOE (warmer-drier edge), (28)~MIROC-ES2L (cooler-wetter), (34)~NorESM2-MM (cooler-drier), (5)~CAMS-CMS1-0 (model with lowest HPS, cooler-drier front), and (18)~FGOALS-g3 (cooler side). In general, most quadrants contain at least one historically well-performing model (ranking in the top 20\% of the ensemble); except for the warmer-drier one, which is populated mostly by lower-HPS members. Overall, the emerging pattern supports a performance-informed selection strategy: high-HPS models provide representative central futures, while specific lower-HPS models can be added deliberately to sample the edges of the projected distribution.
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{greece_annual_spread.png}
+\caption{Annual spread of CMIP6 models over Greece for 2081--2100 (SSP5-8.5). Markers show each model’s late-century projection with $\Delta$\texttt{tas} (relative to 1850--1900) on the $x$-axis and mean \texttt{pr} (mm\,day$^{-1}$) on the $y$-axis. Dashed vertical and horizontal lines mark the CMIP6 ensemble medians of $\Delta$\texttt{tas} and \texttt{pr}, partitioning the space into cooler-wetter, warmer-wetter, cooler-drier, and warmer-drier quadrants. Colors denote the \emph{annual} Historical Performance Score (HPS; harmonic mean of the min--max normalized Taylor Skill Score and bias--variability score aggregated across \texttt{tas}, \texttt{pr}, and \texttt{psl}); warmer colors indicate higher historical skill. \textit{Encoding \texttt{tasmax}:} a fixed ring at each point represents the ensemble-median $\Delta$\texttt{tasmax}; the filled area scales with the model’s $\Delta$\texttt{tasmax} relative to that median (larger-than-ring $=$ above-median increase of \texttt{tasmax}; smaller $=$ below-median). The ring is \textbf{dashed} for standard CMIP6 models and \textbf{continuous} for EURO-CORDEX driving models. Models (8)~CESM2, (9)~CESM2-WACCM, and (17)~FGOALS-f3-L lack $\Delta$\texttt{tasmax} and are drawn without an outline. EURO-CORDEX CMIP6 drivers are labeled by name inside the plot and appear in \textbf{bold} in the model list at right, which is ordered by descending annual HPS (best at top).\label{gr_annual_scatter}}
+\end{figure*}    
+\unskip
+
+\noindent\textit{Seasonal future spread.}
+Figure~\ref{gr_seasonal_scatter} summarizes the end-century spread by season, using $\Delta$\texttt{tas} (x-axis), \texttt{pr} (y-axis), seasonal medians as quadrant guides, marker area for relative $\Delta$\texttt{tasmax}, and per-panel HPS colors (not cross-comparable). Models included in the EURO-CORDEX CMIP6 ensemble are highlighted with black continuous instead of dashed outlines for easy identification.
+
+In the DJF (winter) panel, projected changes span roughly $+2.5$ to $+7$\,\textdegree C in $\Delta$\texttt{tas} and $\sim1.6$ to $3.2$\,mm\,day$^{-1}$ in \texttt{pr}. Higher-HPS models tend to favor cooler-than-median $\Delta$\texttt{tas}; for example, (32)~MRI-ESM2-0 projects a relatively cool winter, while (13)~CNRM-CM6-1-HR sits on the wetter side of the median. Marker sizes increase with warming, indicating $\Delta$\texttt{tasmax} amplifies the mean-temperature signal.
+
+The MAM (spring) panel reveals that the precipitation spread is narrower than DJF ($\sim 0.7$--1.7\,mm\,day$^{-1}$), with $\Delta$\texttt{tas} about $+2.5$ to $+6.5$\,\textdegree C. Top performers such as (30)~MPI-ESM1-2-HR and (9)~CESM2-WACCM lie near the seasonal medians (balanced futures), whereas (32)~MRI-ESM2-0 leans both cooler and wetter. In general the better performing models lie inside the cooler side, whereas all quadrants are represented. 
+
+In the JJA (summer) panel, $\Delta$\texttt{tas} shows the largest seasonal range ($\sim +4$ to nearly $+9$\,\textdegree C) and \texttt{pr} is uniformly low ($\sim 0.1$--0.8\,mm\,day$^{-1}$).Within-panel higher-HPS models (scores $\gtrsim0.5$) predominantly indicate a warmer future, on the hotter side of the CMIP6 ensemble; (21)~GISS-E2-1-G and (34)~NorESM2-MM are among the few best-performing models that signal a slightly cooler-than-median cases. Marker areas again rise with $\Delta$\texttt{tas}, consistent with $\Delta$\texttt{tasmax} tracking summer maximum temperatures.
+
+Finally, the SON (autumn) panel shows changes that span roughly $+3$ to $+8$\,\textdegree C in $\Delta$\texttt{tas} and $\sim0.9$ to $2.4$\,mm\,day$^{-1}$ in \texttt{pr}. Higher-HPS models cluster to the cooler side of the seasonal $\Delta$\texttt{tas} median, while wetter outcomes are present but less concentrated among top performers.
+
+Across seasons, $\Delta$\texttt{tasmax} generally scales with $\Delta$\texttt{tas} (larger markers to the right), suggesting intensified hot conditions rather than a distinct, orthogonal response dimension. 
+
+Overall, this approach emphasizes the importance of considering both seasonal and annual performance when selecting models for regional climate impact studies, as different models exhibit varying strengths and weaknesses depending on the temporal scale. The presence of models in multiple quadrants, including those with high historical skill, underlines the diverse range of future climate projections for Greece, further underscoring the need for a performance-informed and context-specific approach to model selection. However, the analysis reveals that while models with strong historical skill accurately reproduce key climate variables, there is no consistent relationship between their present-day performance and the diversity of their future projections. High-performing models do not necessarily capture the full range of possible warming and precipitation changes, particularly at the boundaries of the ensemble. Therefore, the HPS rankings should be interpreted as a diagnostic tool for identifying physical plausibility rather than a deterministic guarantee of future accuracy. While historical fidelity is a necessary condition for regional applicability, it does not strictly constrain the magnitude of future feedback sensitivities.
+
+\begin{figure}
+\centering
+\includegraphics[width=1\textwidth]{greece_seasonal_spread.png}
+\caption{Seasonal spread of CMIP6 models over Greece (2081--2100, SSP5-8.5). Each panel shows a season (DJF, MAM, JJA, SON) with temperature change relative to the pre-industrial period (1850--1900) on the $x$-axis ($\Delta$\texttt{tas} in $^\circ$C) and late-century precipitation on the $y$-axis (\texttt{pr} in mm\,day$^{-1}$). Dashed lines mark the \emph{seasonal} CMIP6 medians, partitioning each panel into cooler-wetter, warmer-wetter, cooler-drier, and warmer-drier quadrants. Marker \emph{fill area} scales with the ratio $\Delta$\texttt{tasmax}$_{\mathrm{model}}/\mathrm{median}(\Delta$\texttt{tasmax}$)$; the dashed ring indicates the ensemble-median $\Delta$\texttt{tasmax}. Models (8,9,17) lacking seasonal \(\Delta\)\texttt{tasmax} are shown without an outline. Colors denote the \emph{seasonal} Historical Performance Score (HPS), min--max normalized \emph{per panel}; colors are not comparable across seasons. Models from the EURO-CORDEX CMIP6 ensemble are circled in continuous black instead of dashed; their names also appear in \textbf{bold} in the model list. This layout enables a performance-informed selection of models that represent diverse seasonal climate response categories for Greece.\label{gr_seasonal_scatter}}
+\end{figure}
+\unskip
+\vspace{10pt}
+
+
+\subsection{Representativeness of EURO-CORDEX CMIP6 Subset for Greece}\label{cordex}
+The evaluation of the EURO-CORDEX CMIP6 subset within the CMIP6 ensemble reveals both strengths and limitations in its ability to represent future climate trajectories for Greece. In the context of the annual model spread (Figure \ref{gr_annual_scatter}), the EURO-CORDEX CMIP6 subset fails to adequately capture the ``Warmer-Wetter'' quadrant, as no models from the subset project substantial warming coupled with increased precipitation. While the subset spans most of the range of absolute precipitation values along the wetter-drier axis, it is less representative along the cooler-warmer axis, with models predominantly clustering near the ensemble median or on the warmer side. As a result, cooler-temperature futures, signaled by models such as GFDL-ESM4 (20), are missing from the subset.
+
+Using the Historical Performance Score (HPS, Figure \ref{gr_hps_rankings}), two EURO-CORDEX drivers---(16)~EC-Earth3-Veg and (30)~MPI-ESM1-2-HR---rank \emph{first and second} in the full 35-model set, which is encouraging for applications in Greece. By contrast, several other drivers in the subset fall in the lower tail of the distribution: (29)~MIROC6 ranks 33/35, (11)~CMCC-CM2-SR5 is also low (bottom decile), and (34)~NorESM2-MM lies well below the ensemble median. (14)~CNRM-ESM2-1 sits nearer the middle of the pack. Under our HPS criterion---which rewards concurrent pattern fidelity and small bias---these weaker performers would be unlikely first choices for a Greece-focused sub-ensemble. This highlights a potential gap in representing boundary futures, which could be critical for planning and risk assessments.
+
+Seasonal analyses (Figure \ref{gr_seasonal_scatter}) provide further nuance to this picture. A systematic limitation evident across all seasons is the subset's failure to capture the coolest temperature trajectories, leaving the lower bound of the projected warming distribution unrepresented. In DJF, the subset spans much of the ensemble’s spread (though it still lacks ``Warmer-Wetter''), and the members attain \emph{moderate} seasonal HPS (Figure \ref{gr_hps_rankings})---descriptive of the ensemble but not among the very top seasonal performers. In MAM, the EURO-CORDEX members display temperature spread but insufficient \texttt{pr} range, with (30)~MPI-ESM1-2-HR the clear seasonal standout while the remaining drivers sit among the weaker performers. In JJA, the subset again lacks \texttt{pr} range (points cluster near the seasonal precipitation median, leaving cooler-wetter and warmer-wetter responses underrepresented), although several members have \emph{good} historical skill for summer. In SON, spread is comparatively better represented and seasonal HPS is generally \emph{moderate} across the subset.
+
+Overall, the EURO-CORDEX CMIP6 subset samples the ensemble’s \emph{central tendencies} for Greece but underrepresents key \emph{boundary} outcomes---especially "Warmer-Wetter", the coolest temperature futures, and parts of the seasonal \texttt{pr} tails in DJF and JJA. For impact studies that require robust coverage of plausible futures, augmenting the EURO-CORDEX drivers with a small number of non-subset models that (i) fill the missing quadrants and (ii) achieve high HPS in the relevant season(s) would yield a more comprehensive, performance-informed regional sub-ensemble.
+
+\section{Discussion}\label{sec4}
+\subsection{Evaluation and Interpretation of Results}
+
+The CMIP6 evaluation over Greece reveals clear strengths alongside persistent challenges. For annual mean temperature (\texttt{tas}), 30/35 models achieve a country-mean absolute bias (MAB) below $1.5\,^{\circ}\mathrm{C}$, indicating robust reproduction of the recent climate. Seasonally, however, fidelity weakens in winter (DJF) and summer (JJA): the Taylor diagrams show uniformly high correlations but wider variance ratios and higher CRMSE in these two seasons, consistent with known difficulties in representing cold-season circulation and warm-season land-atmosphere coupling over complex terrain. Precipitation (\texttt{pr}) exhibits the largest spread: 28/35 models underestimate annual amounts, and the weakest seasonal skill concentrates in DJF and JJA, when Mediterranean rainfall arises from midlatitude cyclones and convection, respectively \citep{Lionello2012, Coppola2020}. Sea-level pressure (\texttt{psl}) shows a systematic signed bias---30/35 models overestimate pressure---together with large seasonal variance departures, plausibly reflecting unresolved mesoscale processes and topographic influences \citep{Katopodis2021, Arjdal2023}.
+
+Future projections under SSP5-8.5 span \(\Delta\)\texttt{tas} \(\approx +3\) to \(+7.5\,^{\circ}\mathrm{C}\) by 2081--2100 (median \(\approx 5.4\,^{\circ}\mathrm{C}\)) and late-century \texttt{pr} \(\approx 0.9\)--\(1.8\,\mathrm{mm\,day^{-1}}\), implying markedly different hydroclimatic outcomes depending on model choice. While historical skill does not uniquely determine a model’s future placement, a modest and policy-relevant pattern emerges: higher-HPS models tend to cluster nearer the ensemble medians (i.e., they emphasize central responses), whereas the most extreme ``boundary'' futures are more often produced by lower-HPS models. The added \(\Delta\)\texttt{tasmax} encoding corroborates the thermal signal---marker sizes increase monotonically with \(\Delta\)\texttt{tas}---suggesting no hidden hot-extreme dimension beyond the mean-warming axis at the seasonal/annual scales considered. 
+
+The quadrant-based classification of models into categories such as ``Cooler-Drier'' and ``Warmer-Wetter'' further illustrated the diversity of projected climate responses. This distribution highlights the importance of considering both historical accuracy and the range of future scenarios when selecting models for impact studies. The findings underscore the need for developing adaptation strategies that are flexible and robust against a wide range of possible future climates, from moderate warming to severe drought conditions.
+
+\subsection{Balanced Subset Selection for Greece}
+The selection of a balanced subset of climate models depends on the specific research objectives, available resources, and the desired ensemble size when computational constraints preclude using the full ensemble. This study provides the information needed to enable informed selection for Greece, addressing the challenges of processing the full CMIP6 ensemble, which comprises more than 100 models and is often impractical due to time, computational, and data-access constraints. However, an uninformed or arbitrary reduction can introduce bias, either by including low-performing models or by failing to capture the diversity of future climate signals.
+
+For general assessments of future climate over Greece, an example subset of four models can be identified based on (i) historical performance (HPS) and (ii) diversity of future responses in \(\Delta\)\texttt{tas}--\texttt{pr} space (cf.\ Fig.~\ref{gr_annual_scatter}). We propose (16)~EC-Earth3-Veg, (21)~GISS-E2-1-G, (20)~GFDL-ESM4, and (23)~HadGEM3-GC31-MM. These models score in the upper portion of the annual HPS ranking (upper quartile) and collectively populate different quadrants, thereby spanning contrasting combinations of warming and late-century precipitation; they also cover a broad range of \(\Delta\)\texttt{tasmax} marker sizes. Notably, only one of these models is included in the EURO-CORDEX CMIP6 driver set; if alignment with EURO-CORDEX is desired while preserving coverage, (30)~MPI-ESM1-2-HR and/or (14)~CNRM-ESM2-1 can be substituted to balance the subset.
+
+In cases where only a single model is required for fast track assessment (19)~FIO-ESM-2-0 sits near the ensemble medians in \(\Delta\)\texttt{tas} and \texttt{pr} (i.e., spread-representative) but has only middling historical accuracy. Depending on study goals or data availability, we therefore suggest considering (30)~MPI-ESM1-2-HR, (12)~CNRM-CM6-1, or (3)~AWI-CM-1-1-MR as alternatives that pair higher HPS with central tendencies. In all cases, users should consult the diagnostic figures for their chosen model(s)---bias maps (Figs.~\ref{gr_tas_bias}, \ref{gr_pr_bias}) and performance panels---to ensure the selection matches application needs (e.g., variable/season of interest, tolerance for bias). As an example for heatwave planning in JJA, a historically skillful model that projects warmer-drier conditions is appropriate; (35)~UKESM1-0-LL is a strong candidate (Fig.~\ref{gr_seasonal_scatter}).
+
+These findings underscore the complexity of climate model evaluation and selection for regional applications. While historical performance provides confidence in a model’s ability to simulate current climate conditions, it does not guarantee reliability in projecting future outcomes. The observed lack of correlation between historical skill and future climate responses reinforces the need to prioritize both model diversity and boundary outcomes in regional impact studies. For Greece, where extreme warming and hydrological variability pose significant risks, a balanced model selection approach is essential to avoid biases toward central projections.
+
+The examples provided demonstrate the flexibility of this methodology, which can be adapted to different use cases and research goals, whether for extreme event analysis, sector-specific studies, or broader climate risk assessments. Researchers can utilize the provided framework to select models that balance historical accuracy and future spread while accounting for case-specific priorities. When applications demand finer spatial detail (e.g., coastal hydrology or complex terrain), prioritizing higher-resolution GCM variants (resolutions are listed in Table \ref{cmip6_models_table}) is appropriate provided their HPS remains competitive and the data volume is manageable. This approach ensures that reduced ensembles retain the diversity of the full CMIP6 ensemble and minimize potential biases, enhancing the robustness and reliability of climate studies over Greece.
+
+
+\subsection{Implications, Limitations and Recommendations for Future Research }
+The identified biases and variability in CMIP6 models have practical implications for climate adaptation in Greece. Understanding the tendencies of models to overestimate temperature and underestimate precipitation can guide the selection of models that more accurately reflect Greece’s climate, leading to better-informed adaptation measures. Our quadrant-based framework for analyzing future projections contributes to the theoretical understanding of climate model evaluation: by combining historical performance with future spread, it supports transparent, performance-informed sub-selection and can be applied to other regions with complex climates. For policymakers, these findings highlight the need for flexible adaptation strategies that account for a wide range of possible future climates. The framework can aid in prioritizing resources and developing policies that address specific vulnerabilities, such as hydrological stress, heat risk, etc.
+
+The EURO-CORDEX CMIP6 subset, which aims to provide high-resolution regional climate simulations, was evaluated for its representativeness of Greece’s future climate trajectories within the broader CMIP6 ensemble. While the subset effectively captures the median tendencies of the ensemble, it is less complete in representing boundary cases such as ``Warmer-Wetter'' or ``Cooler-Wetter'' outcomes. At the same time, several EURO-CORDEX driving models exhibit strong historical performance over Greece (e.g., EC-Earth3-Veg and MPI-ESM1-2-HR), underscoring that the subset contains high-skill candidates even if it does not, by itself, span the full envelope of futures. This motivates tailored model selection that accounts for regional needs and research objectives: including models that cover the full range of \(\Delta\)\texttt{tas}--\texttt{pr} responses and demonstrate solid seasonal skill enables robust and context-appropriate adaptation strategies.
+
+
+%\subsection{Limitations}
+This study has limitations that should be considered when interpreting the results. The coarse resolution of CMIP6 global climate models may not adequately capture small-scale processes and local climatic influences in Greece’s complex terrain, particularly in mountainous and coastal regions. The proposed framework is therefore intended to \emph{complement}, not replace, regional climate modeling: RCMs provide higher spatial detail and process realism for impact studies, while GCM-based screening remains useful for country-scale diagnostics, for curating diverse driving conditions, and---at the time of writing---where systematic CMIP6 downscaling coverage is still maturing. While we rely on the GSWP3-W5E5 bias-adjusted observational dataset for evaluation, its own uncertainties, especially over sparsely observed areas, may propagate into performance metrics. Our analysis focuses on four variables---mean temperature (\texttt{tas}), maximum temperature (\texttt{tasmax}), precipitation (\texttt{pr}), and sea-level pressure (\texttt{psl})---and primarily on annual/seasonal climatologies; excluding other indicators (e.g., wind, soil moisture, humidity) and higher-frequency extremes (e.g., sub-daily heavy precipitation) limits direct applicability to some impact contexts. Furthermore, the calculation of correlation coefficients for seasonal Taylor diagrams relies on the monthly climatology ($N=3$ months), rendering it a measure of intra-seasonal phase consistency rather than a statistically robust correlation of variability.
+
+Another limitation lies in the lack of correlation between historical performance and future projections, suggesting that models with high skill scores in reproducing historical climates may not necessarily provide the most reliable future responses. This introduces uncertainty into model selection processes. Furthermore, the study does not explicitly address model interdependence within the CMIP6 ensemble. Given that many models share similar components or origins, such as physics schemes or boundary conditions, this can bias the ensemble spread and reduce the effective diversity of future projections. Finally, our focus on the high-emission SSP5-8.5 scenario offers insights into extreme climate impacts but does not encompass the full range of potential socio-economic pathways.
+
+%\subsection{Recommendations for Future Research}
+Future research should incorporate high-resolution regional climate models to better capture local processes and the effects of complex topography. Expanding analyses to include multiple socio-economic scenarios would provide a more comprehensive understanding of potential climate futures. Integrating climate projections with sector-specific impact assessments can enhance the relevance of climate information for decision-makers. This interdisciplinary approach would support the development of targeted adaptation strategies for sectors such as agriculture, water resources, and energy. Refining model selection criteria by including additional performance metrics and considering model independence could improve the robustness of selected model subsets. Assigning differential weights based on factors such as model lineage and uniqueness may lead to a more representative ensemble for regional studies. Finally, combining climate modeling with socio-economic data can provide a holistic view of adaptation needs, informing policies that are both scientifically sound and socially equitable.
+
+
+\section{Conclusion}\label{sec5}
+Greece, situated in the vulnerable Mediterranean region, faces significant challenges from climate change, notably increasing risks of warming and hydrological variability. To address the need for region-specific assessments, we evaluated the historical performance of 35 CMIP6 models and categorized their future projections under the SSP5-8.5 scenario. By applying a composite Historical Performance Score (HPS) that synthesizes pattern fidelity and bias, along with a quadrant-based classification of future responses, we developed a structured framework for understanding both past and future climate dynamics over Greece. We further encoded changes in maximum temperature (\(\Delta\)\texttt{tasmax}) to characterize hot-condition amplification, emphasizing the critical role of model selection in capturing diverse climate responses.
+
+Our results demonstrated that while temperature simulations exhibited strong pattern fidelity, there was significant variability in the representation of precipitation and sea-level pressure. These discrepancies reflect the challenges posed by Greece's complex climate and topography. The sizeable variability in precipitation and sea-level pressure underscores the complexities of accurately modeling regional climates with global models and highlights the importance of careful model evaluation and selection.
+
+We further identify a critical limitation in the evaluation of climate models, the absence of a consistent relationship between present-day performance and future projections. Models with high historical skill do not necessarily capture extreme climate responses, such as pronounced warming or drying trends. This finding emphasizes the need for model selection frameworks that combine historical performance metrics with the representation of diverse future outcomes, ensuring a robust foundation for regional climate risk assessments and adaptation planning in Greece.
+
+The framework we developed facilitates informed model selection, enabling researchers and policymakers to balance historical accuracy with the need to represent a wide range of future climate scenarios. By identifying key biases and highlighting the spread of projections---including \(\Delta\)\texttt{tas}, \texttt{pr}, \texttt{psl}, and \(\Delta\)\texttt{tasmax}---we underscore the importance of integrating diverse models for robust regional adaptation planning. As Greece confronts the realities of climate change, our methodological advances provide a valuable foundation for targeted impact assessments and the development of effective, tailored climate strategies.
+
+In conclusion, this study offers a practical approach for regional climate assessment and model selection that can be applied to other regions facing similar challenges. Future research should continue to refine these methods and expand them---across scenarios and resolutions---to enhance climate resilience and adaptation efforts in Greece and beyond.
+
+\backmatter
+
+\bmhead{Supplementary Information}
+This article contains two Appendices. Appendix~A includes additional figures (Figs.~A1--A6), 
+and Appendix~B provides a detailed statistical assessment supporting the qualitative analysis presented in the main text.
+No separate supplementary files are provided.
+
+\bmhead{Acknowledgments}
+The authors acknowledge the contribution of the General Secretariat of Research and Technology of Greece for supporting this study within the framework of the project ``Support the upgrading of the operation of the National Network on Climate Change (CLIMPACT)'' under Grant No.~2023NA11900001.
+
+\section*{Declarations}
+\subsection*{Funding}
+This research was supported by the General Secretariat of Research and Technology of Greece 
+within the framework of the project ``Support the upgrading of the operation of the National Network on Climate Change (CLIMPACT)'', 
+under Grant No.~2023NA11900001.
+
+\subsection*{Conflict of Interest}
+The authors declare no conflicts of interest.
+
+\subsection*{Ethics Approval and Consent to Participate}
+Not applicable.
+
+\subsection*{Consent for Publication}
+All authors consent to the publication of this manuscript.
+
+\subsection*{Data Availability}
+The repository \url{https://github.com/thchilly/cmip6-greece} contains the code, processed data, and visualizations used in this study. The raw CMIP6 data (doi.org/10.5194/gmd-9-1937-2016) utilized in the analysis was sourced from the KNMI Climate Explorer (\url{https://climexp.knmi.nl/}). The GSWP3-W5E5 (doi.org/10.48364/ISIMIP.886955) observational dataset used for model evaluation was obtained from the ISIMIP data repository (\url{https://data.isimip.org/}).
+
+\subsection*{Materials Availability}
+Not applicable.
+
+\subsection*{Code Availability}
+All code used in this study will be made publicly available at \url{https://github.com/thchilly/cmip6-greece} upon publication.
+
+\subsection*{Author Contributions}
+
+Conceptualization, Athanasios Tsilimigkras and Aristeidis Koutroulis; methodology, Athanasios Tsilimigkras; software, Athanasios Tsilimigkras; validation, Athanasios Tsilimigkras, Aristeidis Koutroulis; formal analysis, Athanasios Tsilimigkras; investigation, Athanasios Tsilimigkras; resources, Aristeidis Koutroulis, Mihalis Lazaridis; data curation, Athanasios Tsilimigkras; writing---original draft preparation, Athanasios Tsilimigkras; writing---review and editing, Athanasios Tsilimigkras, Mihalis Lazaridis, Apostolos Voulgarakis, Konstantinos Varotsos, Anna Karali, Christos Giannakopoulos, Anastasios Stamou, and Aristeidis Koutroulis; visualization, Athanasios Tsilimigkras; supervision, Aristeidis Koutroulis; project administration, Anastasios Stamou; funding acquisition, Anastasios Stamou. All authors have read and agreed to the published version of the manuscript.
+
+
+\begin{appendices}
+
+\section{CMIP6 Annual/Seasonal Performance Diagnostics}\label{sec_appendices}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{greece_tas_seasonal_perf.png}
+\caption{
+Performance of CMIP6 models in simulating the annual cycle of surface air temperature (\texttt{tas}) for the recent past period (1995--2014).
+The top panel illustrates the annual cycle of \texttt{tas} as monthly means for Greece.
+Each colored line represents a single CMIP6 model, with colors corresponding to the model’s \emph{annual RMSE} for \texttt{tas}; lighter yellow indicates lower RMSE (better), while deeper red indicates higher RMSE (worse).
+The black line indicates the observational dataset GSWP3-W5E5, serving as the reference.
+Models with lines above the observational dataset overestimate \texttt{tas}, whereas those below underestimate it.
+The lower panels show scatterplots for seasonal performance (DJF, MAM, JJA, SON).
+Each scatterplot displays the relationship between the \emph{seasonal mean absolute bias (seasonal MAB)} of \texttt{tas} (x-axis) and the \emph{annual correlation} (y-axis).
+Models are represented by their ID numbers. To resolve overlapping points, some labels are slightly shifted. Outlier models falling outside the plotted range are anchored to the plot edge with an annotation indicating their true coordinates.
+Models are consistently numbered and named across all subplots.
+\label{gr_tas_perf}}
+\end{figure}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{greece_pr_seasonal_perf.png}
+\caption{
+Performance of CMIP6 models in simulating the annual cycle of precipitation (\texttt{pr}) for the recent past period (1995--2014). 
+The top panel illustrates the annual cycle of \texttt{pr} as monthly means for Greece. 
+Each colored line represents a single CMIP6 model, with colors corresponding to the model’s \emph{annual RMSE} for \texttt{pr}; lighter pale yellow indicates lower RMSE (better), while darker blue indicates higher RMSE (worse). 
+The black line indicates the observational dataset GSWP3-W5E5, serving as the reference. 
+Models with lines above the observational dataset overestimate \texttt{pr}, whereas those below underestimate it. 
+The lower panels show scatterplots for seasonal performance (DJF, MAM, JJA, SON). 
+Each scatterplot displays the relationship between the \emph{seasonal mean absolute bias (seasonal MAB)} of \texttt{pr} (x-axis) and the \emph{annual correlation} (y-axis).
+Models are represented by their ID numbers. To resolve overlapping points, some labels are slightly shifted. Outlier models falling outside the plotted range are anchored to the plot edge with an annotation indicating their true coordinates.
+Models are consistently numbered and named across all subplots.
+\label{gr_pr_perf}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{greece_psl_seasonal_perf.png}
+\caption{
+Performance of CMIP6 models in simulating the annual cycle of sea-level pressure (\texttt{psl}) for the recent past period (1995--2014). 
+The top panel illustrates the annual cycle of \texttt{psl} as monthly means for Greece. 
+Each colored line represents a single CMIP6 model, with colors corresponding to the model’s \emph{annual RMSE} for \texttt{psl}; lighter green indicates lower RMSE (better), while darker blue indicates higher RMSE (worse). 
+The black line indicates the observational dataset GSWP3-W5E5, serving as the reference. 
+Models with lines above the observational dataset overestimate \texttt{psl}, whereas those below underestimate it. 
+The lower panels show scatterplots for seasonal performance (DJF, MAM, JJA, SON). 
+Each scatterplot displays the relationship between the \emph{seasonal mean absolute bias (seasonal MAB)} of \texttt{psl} (x-axis) and the \emph{annual correlation} (y-axis).
+Models are represented by their ID numbers. To resolve overlapping points, some labels are slightly shifted. Outlier models falling outside the plotted range are anchored to the plot edge with an annotation indicating their true coordinates.
+Models are consistently numbered and named across all subplots.
+\label{gr_psl_perf}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{greece_tasmax_seasonal_perf.png}
+\caption{
+Performance of CMIP6 models in simulating the annual cycle of maximum near-surface air temperature (\texttt{tasmax}) for the recent past period (1995--2014). 
+The top panel illustrates the annual cycle of \texttt{tasmax} as monthly means for Greece. 
+Each colored line represents a single CMIP6 model, with colors corresponding to the model’s \emph{annual RMSE} for \texttt{tasmax}; lighter orange indicates lower RMSE (better), while darker brown indicates higher RMSE (worse). 
+The black line indicates the observational dataset GSWP3-W5E5, serving as the reference. 
+Models with lines above the observational dataset overestimate \texttt{tasmax}, whereas those below underestimate it.
+The lower panels show scatterplots for seasonal performance (DJF, MAM, JJA, SON). 
+Each scatterplot displays the relationship between the \emph{seasonal mean absolute bias (seasonal MAB)} of \texttt{tasmax} (x-axis) and the \emph{annual correlation} (y-axis).
+Models are represented by their ID numbers. To resolve overlapping points, some labels are slightly shifted. Outlier models falling outside the plotted range are anchored to the plot edge with an annotation indicating their true coordinates.
+Models are consistently numbered and named across all subplots.
+\label{gr_tasmax_perf}}
+\end{figure}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{greece_tasmax_annual_bias.png}
+\caption{Annual mean maximum near-surface air temperature (\texttt{tasmax}) bias for the CMIP6 ensemble (32 models with available \texttt{tasmax} data) over Greece for the period 1995--2014. The top panel shows the observed mean \texttt{tasmax} distribution over Greece, based on the GSWP3-W5E5 dataset. The subplots below display the spatial \texttt{tasmax} bias of each of the 35 CMIP6 models compared to the observed data, arranged from left to right and top to bottom by ascending \emph{mean absolute bias (MAB)}, with better-performing models shown first. Each model retains its original resolution, with the observed data resampled to match the resolution of each respective model.
+\label{gr_tasmax_bias}}
+\end{figure}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=.98\textwidth]{tasmax_annual4season_taylor}
+\caption{Taylor diagrams illustrating the performance of 35 CMIP6 models over Greece for maximum near-surface air temperature (\texttt{tasmax}) for annual and seasonal (DJF, MAM, JJA, SON) periods. Each diagram plots the standard deviation, Pearson correlation coefficient, and centered Root Mean Square Error (CRMSE) contours, with models displayed as numbered markers. The closer a model is to the star (representing observations), the better its performance. The top-left panel presents the annual evaluation, while the remaining panels show seasonal performance, providing insight into seasonal accuracy and variability specific to \texttt{tasmax}. Overall patterns and amplitudes are broadly consistent with those for \texttt{tas} in Figure~\ref{gr_taylor_plots}, though seasonal details differ by model.%
+\label{gr_taylor_tasmax_plot}}
+\end{figure}
+
+
+
+
+\section{Detailed Statistical Assessment of Model Performance} \label{sec_appendix_stats}
+
+This appendix provides the quantitative breakdown supporting the qualitative pattern fidelity assessment summarized in Section~\ref{hist_perf_eval}. It details the specific statistical metrics (correlation coefficients, variance ratios, and CRMSE) derived from the Taylor diagrams in Figure~\ref{gr_taylor_plots} for surface air temperature (\texttt{tas}), precipitation (\texttt{pr}), and sea-level pressure (\texttt{psl}).
+
+\subsection*{Surface Air Temperature (\texttt{tas})}
+For annual temperature, all CMIP6 models achieve high pattern correlations ($\geq 0.95$; many $\approx 0.99$), while amplitudes vary around the observed spatial standard deviation ($\sigma_\text{obs} \approx 5.8^\circ$C): models span 5.1--7.2$^\circ$C---about $-11\%$ to $+25\%$ relative to $\sigma_\text{obs}$---with MRI-ESM2-0 at the low end and MIROC6 at the high end. Annual CRMSE values are predominantly below 1.0$^\circ$C, with only a few models falling in the 1.0--2.0$^\circ$C range. 
+
+Seasonally, correlations remain very high in MAM and SON ($\approx 0.98$--1.00), are lower in JJA ($\approx 0.90$--0.98), and decline most in DJF (down to $\approx 0.65$ for the weakest performer). Variance spread is smallest in MAM ($\sigma_\text{obs} \approx 2.9^\circ$C; 2.2--3.4$^\circ$C, i.e., $-23\%$ to $+18\%$) and SON ($\sigma_\text{obs} \approx 3.1^\circ$C; 2.8--4.2$^\circ$C, $-12\%$ to $+33\%$), and largest in DJF ($\sigma_\text{obs} \approx 0.8^\circ$C; 0.4--1.3$^\circ$C, $-43\%$ to $+64\%$) and JJA ($\sigma_\text{obs} \approx 1.3^\circ$C; $\approx 1.0$--2.1$^\circ$C, up to $+62\%$), with GFDL-ESM4 and MIROC6 bracketing the DJF range, BCC-CSM2-MR at the low end in MAM/SON, AWI-CM-1-1-MR at the high end in JJA, and NESM3 high in SON. 
+
+Regarding seasonal CRMSE, values are largely dictated by the magnitude of the observed spatial variance: absolute errors are lowest in DJF (predominantly $<0.6^\circ$C) due to weak gradients, and highest in JJA (up to $\approx 1.5^\circ$C) where high variance combines with lower pattern correlations. Overall, pattern fidelity is uniformly strong. While amplitude agreement is robust in the transition seasons (MAM, SON), variance ratios and CRMSE expose non-negligible differences on the annual scale and in the extreme seasons (particularly DJF).
+
+\subsection*{Precipitation (\texttt{pr})}
+Pattern correlations on the annual panel are the weakest among the three variables ($\approx 0.70$--0.95), while model amplitudes bracket the observed spatial standard deviation $\sigma_{\text{obs}} \approx 1.01\,\mathrm{mm\,d^{-1}}$: the ensemble spans 0.71--1.24\,$\mathrm{mm\,d^{-1}}$ (i.e., $-30\%$ to $+23\%$ relative to $\sigma_{\text{obs}}$), with CanESM5-CanOE at the low end and ACCESS-ESM1-5 at the high end. 
+
+Seasonally, correlations are broadly 0.2--0.8 in DJF and JJA (higher in MAM/SON), and variance spreads are large relative to the observed: DJF $\sigma_{\text{obs}} \approx 0.39\,\mathrm{mm\,d^{-1}}$ with 0.18--0.59\,$\mathrm{mm\,d^{-1}}$ across models ($-53\%$ to $+52\%$); MAM $\sigma_{\text{obs}} \approx 0.42\,\mathrm{mm\,d^{-1}}$ with 0.19--0.55\,$\mathrm{mm\,d^{-1}}$ ($-55\%$ to $+33\%$); JJA $\sigma_{\text{obs}} \approx 0.12\,\mathrm{mm\,d^{-1}}$ with 0.07--0.49\,$\mathrm{mm\,d^{-1}}$ ($-45\%$ to $+310\%$); and SON $\sigma_{\text{obs}} \approx 0.60\,\mathrm{mm\,d^{-1}}$ with 0.47--1.22\,$\mathrm{mm\,d^{-1}}$ ($-21\%$ to $+102\%$). 
+
+Consistent with these deviations, CRMSE contours are largest in JJA and SON, underscoring that \texttt{pr} remains the most challenging field for the ensemble, particularly during winter and summer months. Regarding CRMSE, annual values cluster between 0.4 and 0.6\,mm\,d$^{-1}$. Seasonally, absolute errors are magnitude-dependent: lowest in the dry JJA season ($<0.4$\,mm\,d$^{-1}$) and highest in SON (up to 0.8\,mm\,d$^{-1}$), with winter and spring falling in the intermediate 0.2--0.5\,mm\,d$^{-1}$ range.
+
+\subsection*{Sea-Level Pressure (\texttt{psl})}
+Annual correlations are moderate to high ($\approx 0.8$--0.97), but model amplitudes depart significantly from the observed spatial standard deviation $\sigma_{\text{obs}} \approx 2.76\,\mathrm{hPa}$: the ensemble spans 1.80--5.40\,$\mathrm{hPa}$ (i.e., $-35\%$ to $+96\%$ relative to $\sigma_{\text{obs}}$), the largest annual spread among the three variables, and annual CRMSE contours are correspondingly broad. 
+
+Seasonally, correlations span a wide range ($\approx 0$--1), with substantial variance departures in every season: DJF $\sigma_{\text{obs}} \approx 0.65\,\mathrm{hPa}$ with 0.15--1.49\,$\mathrm{hPa}$ ($-77\%$ to $+130\%$); MAM $\sigma_{\text{obs}} \approx 1.05\,\mathrm{hPa}$ with 0.50--2.57\,$\mathrm{hPa}$ ($-52\%$ to $+144\%$); JJA $\sigma_{\text{obs}} \approx 0.91\,\mathrm{hPa}$ with 0.50--1.76\,$\mathrm{hPa}$ ($-45\%$ to $+93\%$); and SON $\sigma_{\text{obs}} \approx 1.84\,\mathrm{hPa}$ with 0.54--2.59\,$\mathrm{hPa}$ ($-70\%$ to $+41\%$). 
+
+These panels show the greatest CRMSE dispersion of the three variables, reflecting mixed skill in reproducing both the spatial pattern and amplitude of \texttt{psl} over Greece. Annual CRMSE values generally range between 1.0 and 2.0\,hPa. Seasonally, absolute errors follow the observed variance magnitude, being lowest in DJF (0.2--1.0\,hPa) and highest in SON (0.5--2.0\,hPa).
+
+Together, these statistics provide the quantitative context for the qualitative comparisons discussed in Section~3.3.
+
+\end{appendices}
+
+
+% %%===================================================%%
+% %% For presentation purpose, we have included        %%
+% %% \bigskip command. Please ignore this.             %%
+% %%===================================================%%
+% \bigskip
+% \begin{flushleft}%
+% Editorial Policies for:
+
+% \bigskip\noindent
+% Springer journals and proceedings: \url{https://www.springer.com/gp/editorial-policies}
+
+% \bigskip\noindent
+% Nature Portfolio journals: \url{https://www.nature.com/nature-research/editorial-policies}
+
+% \bigskip\noindent
+% \textit{Scientific Reports}: \url{https://www.nature.com/srep/journal-policies/editorial-policies}
+
+% \bigskip\noindent
+% BMC journals: \url{https://www.biomedcentral.com/getpublished/editorial-policies}
+% \end{flushleft}
+
+% \begin{appendices}
+
+% \section{Section title of first appendix}\label{secA1}
+
+% An appendix contains supplementary information that is not an essential part of the text itself but which may be helpful in providing a more comprehensive understanding of the research problem or it is information that is too cumbersome to be included in the body of the paper.
+
+% %%=============================================%%
+% %% For submissions to Nature Portfolio Journals %%
+% %% please use the heading ``Extended Data''.   %%
+% %%=============================================%%
+
+% %%=============================================================%%
+% %% Sample for another appendix section			       %%
+% %%=============================================================%%
+
+% %% \section{Example of another appendix section}\label{secA2}%
+% %% Appendices may be used for helpful, supporting or essential material that would otherwise 
+% %% clutter, break up or be distracting to the text. Appendices can consist of sections, figures, 
+% %% tables and equations etc.
+
+% \end{appendices}
+
+%%===========================================================================================%%
+%% If you are submitting to one of the Nature Portfolio journals, using the eJP submission   %%
+%% system, please include the references within the manuscript file itself. You may do this  %%
+%% by copying the reference list from your .bbl file, paste it into the main manuscript .tex %%
+%% file, and delete the associated \verb+\bibliography+ commands.                            %%
+%%===========================================================================================%%
+
+\bibliography{sn-bibliography}% common bib file
+%% if required, the content of .bbl file can be included here once bbl is generated
+%%\input sn-article.bbl
+
+
+\end{document}

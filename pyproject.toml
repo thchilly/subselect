@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subselect"
+version = "0.1.0.dev0"
+description = "Country-scale CMIP6 sub-ensemble selection framework"
+readme = "CLAUDE.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Athanasios Tsilimigkras" },
+    { name = "Aristeidis Koutroulis" },
+]
+keywords = ["cmip6", "climate", "model-selection", "subselection", "downscaling"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+
+# Loose lower bounds. The authoritative pin source is environment.yml (conda
+# env named `subselect`). pyproject is here to make `pip install -e .` work
+# inside that env and to expose entry points.
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "xarray>=2024.1",
+    "netcdf4>=1.6",
+    "pyarrow>=14",
+    "zarr>=2.16,<3",
+    "regionmask>=0.11",
+    "rioxarray>=0.15",
+    "geopandas>=0.14",
+    "shapely>=2",
+    "rasterio>=1.3",
+    "scikit-learn>=1.4",
+    "matplotlib>=3.8",
+    "joblib>=1.3",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+viz-interactive = ["plotly>=5.18"]
+webapp = ["streamlit>=1.30"]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+
+[project.urls]
+"Source" = "https://github.com/thchilly/subselect"
+
+[tool.setuptools.packages.find]
+include = ["subselect*"]
+exclude = ["tests*", "legacy*", "Data*", "subselection_paper*", "egu26_poster*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+markers = [
+    "regression: end-to-end regression vs the published Greece paper artefacts",
+    "slow: requires raw CMIP6/observational data on disk",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

@@ -1,0 +1,115 @@
+% =============================================================================
+% subselect — methodology log
+%
+% This file records finalized methodology decisions for the subselect framework.
+% It is the source-of-truth that the EGU 2026 poster and the follow-up paper
+% will both quote. See ../docs/documentation_workflow.md for what goes here
+% and what doesn't.
+%
+% Compile: pdflatex methods.tex
+% =============================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[round]{natbib}
+\usepackage{enumitem}
+\setlist{itemsep=2pt, topsep=4pt}
+
+\title{\texttt{subselect} --- Methodology Log}
+\author{Athanasios Tsilimigkras \and Aristeidis Koutroulis \\
+        Technical University of Crete, Chania, Greece}
+\date{Last updated: \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+This document records the finalized methodology decisions of the \texttt{subselect}
+framework for country-scale CMIP6 sub-ensemble selection. Each decision lists the
+question, the alternatives considered, the chosen option, the rationale, the
+defining equation or pseudocode, the implementation pointer, and the date.
+The document is appended to as decisions are made, never edited retroactively.
+It feeds the EGU~2026 poster \citep[abstract EGU26-14502]{subselect:abstract}
+and the follow-up framework paper.
+\end{abstract}
+
+\tableofcontents
+
+% =============================================================================
+\section{Historical performance}\label{sec:performance}
+% =============================================================================
+
+The historical-performance dimension is reused unchanged from the published Greece
+paper. See \texttt{../docs/historical\_performance.md} for the complete specification
+of the variables, reference dataset, evaluation window, and aggregation choices.
+
+% --- entries appended below as performance methodology evolves -----------------
+
+% =============================================================================
+\section{Future-response spread}\label{sec:spread}
+% =============================================================================
+
+The future-spread dimension is partially inherited from the published paper
+(change variables, scenario default) and partially extended for the framework
+(formal sub-ensemble coverage metric). See \texttt{../docs/future\_spread.md}
+for the design space.
+
+% --- entries appended below as spread methodology is finalized ----------------
+
+% =============================================================================
+\section{Model independence}\label{sec:independence}
+% =============================================================================
+
+The independence dimension is new in the framework; it was not part of the
+published Greece paper. Two methods are scoped: feature-space clustering on a
+regional climate-response embedding, and pairwise-RMSE genealogy clustering.
+See \texttt{../docs/model\_similarity.md} for the design.
+
+% --- entries appended below as independence methodology is finalized ---------
+
+% =============================================================================
+\section{Multi-objective optimization}\label{sec:optimization}
+% =============================================================================
+
+The selection engine combines the three dimensions into a scalar cost (default)
+and a Pareto front (diagnostic). See \texttt{../docs/cost\_function.md} for the
+design space and \texttt{subselect.optimize} for the implementation.
+
+% --- entries appended below as optimization methodology is finalized ---------
+
+% =============================================================================
+\section{Country cropping}\label{sec:cropping}
+% =============================================================================
+
+The framework supports both bounding-box and shapefile-based cropping of the
+input fields. See \texttt{../docs/refactor.md} for the rationale and the
+\texttt{subselect.geom} module for the implementation.
+
+% --- entries appended below as cropping policy is finalized ------------------
+
+% =============================================================================
+\section{Caching and reproducibility}\label{sec:caching}
+% =============================================================================
+
+The framework caches per-country results in three layers: parquet for tabular
+metric tables, zarr for fields and matrices, and a SQLite catalog as an index.
+See \texttt{../docs/refactor.md} for the design.
+
+% --- entries appended below as caching/reproducibility decisions are made ----
+
+% =============================================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+% =============================================================================
+
+\end{document}

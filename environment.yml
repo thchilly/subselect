@@ -1,0 +1,108 @@
+# =============================================================================
+# subselect — conda environment specification
+#
+# Use this env throughout the project (refactor, similarity, cost function,
+# web app, paper). Spawned Claude Code sessions should activate this env
+# before running anything.
+#
+# Bootstrap (Apple Silicon / M-series Mac):
+#   # 1. Install miniforge if you don't have it (gives conda + mamba on osx-arm64):
+#   #    https://github.com/conda-forge/miniforge#mambaforge
+#   # 2. Create the env:
+#   conda env create -f environment.yml
+#   # 3. Activate:
+#   conda activate subselect
+#   # 4. (After Phase 0 creates pyproject.toml) install the subselect package
+#   #    in editable mode from the repo root:
+#   pip install -e .
+#
+# To update the env later when this file changes:
+#   conda env update -f environment.yml --prune
+#
+# Notes for Apple Silicon (M3 Max):
+#   - conda-forge has osx-arm64 wheels for everything below; no Rosetta needed.
+#   - esmpy / xesmf are heavy but install cleanly from conda-forge on M-series.
+#   - If conda solving is slow, prefer `mamba env create ...` or set
+#     `conda config --set solver libmamba`.
+# =============================================================================
+
+name: subselect
+
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python=3.11
+
+  # ---- Core climate / xarray ecosystem ---------------------------------------
+  - xarray
+  - netcdf4
+  - h5netcdf
+  - dask
+  - cftime
+  - xskillscore
+  - regionmask                 # shapefile-based masking (Phase 0 cropping)
+  - rioxarray                  # raster I/O backed by rasterio
+
+  # ---- Regridding (used by paper-era code via xesmf; required by refactor) ---
+  - xesmf
+  - esmpy                      # backend for xesmf; heavy but conda-forge ARM-ready
+
+  # ---- Caching layer (parquet + zarr + sqlite[stdlib]) ----------------------
+  - pyarrow                    # parquet read/write
+  - zarr<3                     # chunked array storage; pinned to v2 for directory-store stability and to keep web-app static delivery format steady (see docs/refactor.md M6)
+  # sqlite3 is in the Python stdlib; no extra package needed for the catalog
+
+  # ---- Geospatial ------------------------------------------------------------
+  - geopandas
+  - shapely
+  - pyproj
+  - rasterio
+  - fiona
+  - cartopy                    # map figures; used by Phase 0 viz module
+
+  # ---- Numerics / arrays -----------------------------------------------------
+  - numpy
+  - pandas
+  - scipy
+
+  # ---- Machine learning ------------------------------------------------------
+  - scikit-learn               # PCA, KMeans, MDS, TSNE, MinMaxScaler
+
+  # ---- Visualization (matches paper figure stack) ---------------------------
+  - matplotlib
+  - seaborn
+  - cmocean                    # colormaps (paper figures use these)
+  - cmcrameri                  # colormaps (paper figures use these)
+  - plotly                     # for Phase 4 web-app interactive components
+
+  # ---- Misc utilities --------------------------------------------------------
+  - networkx                   # used by clustering visualization in legacy notebooks
+  - openpyxl                   # xlsx read/write (legacy + human-export only)
+  - pyyaml                     # config files
+  - tqdm                       # progress bars in the precompute pipeline
+  - requests                   # HTTP utilities (occasional)
+
+  # ---- CLI climate tools used by Data/remap_observed_data*.sh ---------------
+  - cdo
+  - nco
+
+  # ---- Web app (Phase 4) -----------------------------------------------------
+  - streamlit
+
+  # ---- Notebooks (legacy notebooks must still run for paper-figure regen) ---
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+
+  # ---- Dev / testing ---------------------------------------------------------
+  - pytest
+  - pytest-cov
+  - ruff                       # linting + formatting
+
+  # ---- Pip channel (kept for future pip-only deps; see Notes below) ---------
+  - pip
+  # If you ever need pip-only packages (e.g. `umap-learn` for exotic ML
+  # exploration in Phase 1), add them under a `- pip:` block below. None
+  # required for the current scope.
