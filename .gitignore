@@ -1,5 +1,11 @@
-# Data — too large for git (677 GB raw + cache layer); managed out-of-band
+# Data — input-only; managed out-of-band, never tracked.
 Data/
+
+# Derived caches and legacy paper outputs — siblings of Data/, also out-of-band.
+# `cache/` is built by the M6 cache layer; `results/` holds the legacy paper
+# artefacts (results/greece/ etc.) that M3 fixtures are copied from.
+cache/
+results/
 
 # Legacy notebook directories — frozen, kept on disk for reference, tracked in
 # their own GitHub repos (thchilly/cmip6-greece, thchilly/cmip6-subsampling).

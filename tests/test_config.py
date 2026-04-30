@@ -1,8 +1,9 @@
 """Unit tests for `subselect.config.Config` and the path-resolution chain.
 
 Covers the three resolution branches (env var → ~/.subselect.toml → repo
-default), TOML overrides for cache and shapefile paths, the frozen-dataclass
-contract, and the with_overrides helper.
+default), TOML overrides for every path field, the cache/results sibling-
+of-Data/ defaults, the frozen-dataclass contract, and the with_overrides
+helper.
 """
 
 from __future__ import annotations
@@ -14,8 +15,11 @@ import pytest
 
 from subselect import config as cfg
 from subselect.config import (
-    DEFAULT_CACHE_RELATIVE,
+    DEFAULT_CACHE_ROOT,
     DEFAULT_DATA_ROOT,
+    DEFAULT_METADATA_RELATIVE,
+    DEFAULT_REFERENCE_RELATIVE,
+    DEFAULT_RESULTS_ROOT,
     DEFAULT_SHAPEFILE_RELATIVE,
     DIAGNOSTIC_VARIABLES,
     ENV_VAR_DATA_ROOT,
@@ -38,29 +42,46 @@ def isolated_env(monkeypatch, tmp_path):
     return fake_user_toml
 
 
-def test_default_data_root_when_nothing_set(isolated_env):
-    """Branch 3: no env var, no TOML → repo-relative `<repo>/Data`."""
+def test_default_paths_when_nothing_set(isolated_env):
+    """Branch 3: no env var, no TOML → repo-relative defaults."""
     config = Config.from_env()
     assert config.data_root == DEFAULT_DATA_ROOT
-    assert config.cache_root == DEFAULT_DATA_ROOT / DEFAULT_CACHE_RELATIVE
+    assert config.cache_root == DEFAULT_CACHE_ROOT
+    assert config.results_root == DEFAULT_RESULTS_ROOT
     assert config.shapefile_path == DEFAULT_DATA_ROOT / DEFAULT_SHAPEFILE_RELATIVE
+    assert config.reference_root == DEFAULT_DATA_ROOT / DEFAULT_REFERENCE_RELATIVE
+    assert config.cmip6_metadata_root == DEFAULT_DATA_ROOT / DEFAULT_METADATA_RELATIVE
 
 
-def test_env_var_overrides_default(isolated_env, monkeypatch, tmp_path):
-    """Branch 1: env var wins over both TOML and default."""
+def test_cache_and_results_are_siblings_of_data_not_inside_it(isolated_env):
+    """Restructure 2026-04-30 — cache/ and results/ live at REPO_ROOT, not under Data/."""
+    config = Config.from_env()
+    assert config.cache_root.parent == config.data_root.parent
+    assert config.results_root.parent == config.data_root.parent
+    assert "Data" not in config.cache_root.parts
+    assert "Data" not in config.results_root.parts
+
+
+def test_env_var_overrides_data_root_but_not_cache_or_results(isolated_env, monkeypatch, tmp_path):
+    """Branch 1: env var moves data_root and the data_root-derived paths;
+    cache_root and results_root stay at REPO_ROOT regardless."""
     custom_root = tmp_path / "alt_data"
     custom_root.mkdir()
     monkeypatch.setenv(ENV_VAR_DATA_ROOT, str(custom_root))
-    # Also drop a TOML to prove env var has priority.
     isolated_env.write_text(f'data_root = "{tmp_path / "from_toml"}"\n')
 
     config = Config.from_env()
     assert config.data_root == custom_root.resolve()
-    assert config.cache_root == custom_root.resolve() / DEFAULT_CACHE_RELATIVE
+    assert config.shapefile_path == custom_root.resolve() / DEFAULT_SHAPEFILE_RELATIVE
+    assert config.reference_root == custom_root.resolve() / DEFAULT_REFERENCE_RELATIVE
+    assert config.cmip6_metadata_root == custom_root.resolve() / DEFAULT_METADATA_RELATIVE
+    # cache/results are pinned to REPO_ROOT, unaffected by SUBSELECT_DATA_ROOT
+    assert config.cache_root == DEFAULT_CACHE_ROOT
+    assert config.results_root == DEFAULT_RESULTS_ROOT
 
 
 def test_toml_data_root_used_when_no_env_var(isolated_env, tmp_path):
-    """Branch 2: TOML wins over default when env var is unset."""
+    """Branch 2: TOML data_root wins over default; data_root-derived paths follow."""
     toml_root = tmp_path / "from_toml"
     toml_root.mkdir()
     isolated_env.write_text(f'data_root = "{toml_root}"\n')
@@ -68,23 +89,33 @@ def test_toml_data_root_used_when_no_env_var(isolated_env, tmp_path):
     config = Config.from_env()
     assert config.data_root == toml_root.resolve()
     assert config.shapefile_path == toml_root.resolve() / DEFAULT_SHAPEFILE_RELATIVE
+    assert config.reference_root == toml_root.resolve() / DEFAULT_REFERENCE_RELATIVE
 
 
-def test_toml_independent_overrides_for_cache_and_shapefile(isolated_env, tmp_path):
-    """Branch 2 + the optional cache_root / shapefile_path TOML overrides."""
+def test_toml_independent_overrides_for_every_path_field(isolated_env, tmp_path):
+    """Branch 2 + the TOML override keys for every path."""
     data_root = tmp_path / "data"
     cache_root = tmp_path / "scratch_cache"
+    results_root = tmp_path / "scratch_results"
     shapefile_path = tmp_path / "custom" / "boundaries.gpkg"
+    reference_root = tmp_path / "custom_ref"
+    cmip6_metadata_root = tmp_path / "custom_meta"
     isolated_env.write_text(
         f'data_root = "{data_root}"\n'
         f'cache_root = "{cache_root}"\n'
+        f'results_root = "{results_root}"\n'
         f'shapefile_path = "{shapefile_path}"\n'
+        f'reference_root = "{reference_root}"\n'
+        f'cmip6_metadata_root = "{cmip6_metadata_root}"\n'
     )
 
     config = Config.from_env()
     assert config.data_root == data_root.resolve()
     assert config.cache_root == cache_root.resolve()
+    assert config.results_root == results_root.resolve()
     assert config.shapefile_path == shapefile_path.resolve()
+    assert config.reference_root == reference_root.resolve()
+    assert config.cmip6_metadata_root == cmip6_metadata_root.resolve()
 
 
 def test_toml_with_only_partial_overrides(isolated_env, tmp_path):
@@ -95,6 +126,7 @@ def test_toml_with_only_partial_overrides(isolated_env, tmp_path):
     config = Config.from_env()
     assert config.data_root == DEFAULT_DATA_ROOT  # fell through to default
     assert config.cache_root == cache_root.resolve()
+    assert config.results_root == DEFAULT_RESULTS_ROOT  # default still applies
     assert config.shapefile_path == DEFAULT_DATA_ROOT / DEFAULT_SHAPEFILE_RELATIVE
 
 
@@ -126,6 +158,9 @@ def test_frozen_methodology_constants_match_paper():
         data_root=Path("/tmp/x"),
         cache_root=Path("/tmp/x/cache"),
         shapefile_path=Path("/tmp/x/shp.gpkg"),
+        reference_root=Path("/tmp/x/reference"),
+        cmip6_metadata_root=Path("/tmp/x/CMIP6/metadata"),
+        results_root=Path("/tmp/x/results"),
     )
     assert config.hps_variables == HPS_VARIABLES == ("tas", "pr", "psl")
     assert config.diagnostic_variables == DIAGNOSTIC_VARIABLES == ("tasmax",)
