@@ -187,6 +187,76 @@ See \texttt{../docs/refactor.md} for the design.
 
 % --- entries appended below as caching/reproducibility decisions are made ----
 
+\subsection{Cache stack: parquet + zarr + SQLite}\label{sec:caching-stack}
+
+\paragraph{Question.} Which storage stack should back the per-country and
+ensemble-wide derived artefacts (HPS / BVS tables, change signals, climatology
+fields, GWL crossing years, distance matrices)?
+
+\paragraph{Alternatives considered.}
+\begin{itemize}
+  \item \textbf{Parquet (tabular) + Zarr (arrays) + SQLite (index).}
+        Three layers, each with one responsibility. Parquet is language-portable,
+        schema-explicit, snappy-compressed; Zarr v2 directory stores serve
+        trivially as static files; SQLite is in the Python stdlib.
+  \item \textbf{DuckDB on Parquet.} Same parquet files, DuckDB replaces SQLite
+        as the catalog \emph{and} runs analytical queries directly against
+        the parquet files. Extra dependency.
+  \item \textbf{Intake catalog} (\texttt{intake-xarray}). YAML-based,
+        declarative, climate-community standard for indexing xarray datasets.
+  \item \textbf{HDF5 hierarchies} (\texttt{h5py} or \texttt{netCDF4}).
+        Single-file, hierarchical container.
+\end{itemize}
+
+\paragraph{Choice.} Parquet (tabular) + Zarr (arrays) + SQLite (index).
+
+\paragraph{Rationale.} Four reasons. First, \emph{workload fit}: tabular
+outputs are KB to MB-scale per artefact (the canonical Greece directory is
+$\sim$138\,MB across 28 spreadsheets), and the hot path is per-country
+DataFrame loads in the Phase~2 cost-function inner loop. DuckDB's value is
+analytical SQL across many parquet files; that workload does not exist
+here, so SQLite as a pure path-catalog is the right weight class. Second,
+\emph{consumer set}: the cache is read only by \texttt{subselect} itself and
+the future static web app; \texttt{intake-xarray}'s value is sharing a
+declarative catalog with third-party climate tooling, which is not a
+requirement. Third, \emph{web-app delivery}: zarr~v2 directory stores serve
+trivially over HTTP as static files (the Phase~4 web-app delivery model);
+HDF5 single-files require a server runtime to slice. Fourth,
+\emph{reproducibility hooks}: cache invalidation by code version is a
+single SQLite column; harder to retrofit into intake YAML or HDF5 attributes.
+The legacy code's pickle artefacts (in \texttt{legacy/cmip6-greece/}) are
+language-locked and version-fragile; parquet replaces them and removes
+that dependency.
+
+\paragraph{Definition.} The catalog schema enforces the natural key
+$(\texttt{country}, \texttt{scenario}, \texttt{season}, \texttt{kind},
+\texttt{crop\_method}, \texttt{config\_hash})$ as \texttt{UNIQUE}. Sentinel
+values \texttt{\_global} (country) and \texttt{n/a} (scenario / season /
+crop\_method) are used for global and time-series artefacts so the
+\texttt{NOT NULL} constraint stays enforceable. Three parquet path
+conventions:
+%
+\begin{align*}
+  \text{per-country} \quad &\text{cache/parquet/}\langle c \rangle / \langle s \rangle / \langle p \rangle / \langle k \rangle\_\_\langle m \rangle \texttt{.parquet} \\
+  \text{time-series} \quad &\text{cache/parquet/}\langle c \rangle / \texttt{timeseries} / \langle v \rangle\_\_\langle m \rangle \texttt{.parquet} \\
+  \text{global}       \quad &\text{cache/parquet/\_global/} \langle k \rangle \texttt{.parquet}
+\end{align*}
+%
+where $c$ = country, $s$ = scenario, $p$ = season, $k$ = kind, $m$ =
+crop method, $v$ = variable. Zarr stores live at
+\texttt{cache/zarr/}$\langle c \rangle$/$\langle s \rangle$/$\langle a
+\rangle$\_\_$\langle m \rangle$\texttt{.zarr}.
+
+\paragraph{Implementation.} \texttt{subselect.cache.Catalog} for the SQLite
+index plus \texttt{write\_parquet}, \texttt{read\_parquet},
+\texttt{write\_parquet\_timeseries}, \texttt{read\_parquet\_timeseries},
+\texttt{write\_parquet\_global}, \texttt{read\_parquet\_global},
+\texttt{write\_zarr}, \texttt{read\_zarr}, and \texttt{export\_to\_xlsx}.
+\texttt{zarr<3} pinned in \texttt{environment.yml} and
+\texttt{pyproject.toml} for v2 directory-store stability.
+
+\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+
 % =============================================================================
 \bibliographystyle{plainnat}
 \bibliography{references}
