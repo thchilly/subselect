@@ -55,6 +55,110 @@ of the variables, reference dataset, evaluation window, and aggregation choices.
 
 % --- entries appended below as performance methodology evolves -----------------
 
+\subsection{Paper-era data sources and regridding}\label{sec:performance-data-sources}
+
+\paragraph{Question.} Which CMIP6 grid and which observation product back
+the published Greece paper's HPS values, and what regridding choices stand
+behind them?
+
+\paragraph{Alternatives considered.}
+\begin{itemize}
+  \item Among the precomputed CMIP6 products on disk (\texttt{monthly},
+        \texttt{monthly\_new}, \texttt{monthly\_original}; pre-restructure
+        names): each was a separate ingest with its own time-conventions and
+        decoding choices.
+  \item Among the observation products: raw ISIMIP3a
+        (\texttt{ISIMIP3a/monthly/}, native $\sim$0.5\textdegree{} grid),
+        single-grid upscaled (\texttt{ISIMIP3a/monthly\_upscaled/}, common
+        grid for all models), per-CMIP6-model upscaled
+        (\texttt{ISIMIP3a/monthly\_cmip6\_upscaled/<MODEL>/}, model-by-model
+        grid).
+  \item Among regridding schemes: \texttt{xesmf} bilinear, \texttt{xesmf}
+        conservative, scipy nearest-neighbor, \texttt{cdo} remapcon /
+        remapnn / remapbil.
+\end{itemize}
+
+\paragraph{Choice.} CMIP6 from \texttt{Data/CMIP6/monthly/} (post-restructure
+of \texttt{monthly\_new/}) on each model's native grid; observations from
+\texttt{Data/reference/monthly\_cmip6\_upscaled/<MODEL>/} for the per-pixel
+model-vs-obs metrics; observations regridded with a per-variable scheme
+that is \emph{conservative interpolation for \texttt{pr}} and
+\emph{nearest-neighbor for \texttt{tas} / \texttt{psl} / \texttt{tasmax}}
+(per the inline comment in \texttt{legacy/cmip6-greece/GR\_model\_performance\_HM.ipynb}
+line 55). The 1995--2014 evaluation window per \texttt{Config.eval\_window}
+is sliced \emph{after} loading.
+
+\paragraph{Rationale.} The choices are inherited from the published paper
+and verified during M7.0, not re-litigated. The paper-era pipeline does
+\emph{no} on-the-fly regridding (verified by \texttt{grep} of the
+notebook --- no \texttt{xesmf}, no \texttt{Regridder}, no \texttt{.interp()}
+calls in the active code path); regridding is upstream pre-processing
+performed during the ISIMIP3a ingest, and \texttt{subselect} consumes the
+artefacts as-is. The tooling that produced the upscaled files (likely
+\texttt{cdo} given the per-variable scheme split, but not visibly recorded
+on this MacBook) is not part of the framework's dependency surface.
+
+\paragraph{Implementation.} \texttt{subselect.io.load\_cmip6} reads
+\texttt{Data/CMIP6/monthly/<var>/<scenario>/<MODEL>\_*.nc};
+\texttt{subselect.io.load\_w5e5} reads \texttt{Data/reference/monthly\_cmip6\_upscaled/<MODEL>/<var>\_*\_<MODEL>.nc}
+via \texttt{REFERENCE\_FILENAME\_TEMPLATES}. Period slicing happens
+inside \texttt{subselect.performance.compute\_hps}.
+
+\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+
+\subsection{Observation reference grid for $\sigma_{\text{obs}}$ vs per-pixel metrics}\label{sec:performance-sigma-obs-grid}
+
+\paragraph{Question.} Which observation reference grid is used for the
+$\sigma_{\text{obs}}$ scalar in the TSS denominator, versus the per-pixel
+bias / RMSE / correlation / bias\_score metrics that compare a model to
+observations grid-cell-by-grid-cell?
+
+\paragraph{Alternatives considered.}
+\begin{itemize}
+  \item \textbf{Both metrics from the per-CMIP6-model upscaled product.} One
+        $\sigma_{\text{obs}}$ value per (variable, season, \emph{model}),
+        regridded variance bakes into TSS.
+  \item \textbf{Both metrics from a single common grid.} One
+        $\sigma_{\text{obs}}$ per (variable, season), but per-pixel
+        comparisons are no longer on each model's native grid --- model
+        fields would need to be regridded to the common grid, which the
+        paper-era pipeline explicitly avoids.
+  \item \textbf{Two-tier reference (chosen).} $\sigma_{\text{obs}}$ from a
+        single common grid; per-pixel metrics from each model's own grid.
+\end{itemize}
+
+\paragraph{Choice.} Two-tier reference: $\sigma_{\text{obs}}$ from the
+single-grid upscaled product
+(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc}),
+per-pixel metrics from the per-CMIP6-model upscaled product
+(\texttt{Data/reference/monthly\_cmip6\_upscaled/<MODEL>/<var>\_*\_<MODEL>.nc}).
+
+\paragraph{Rationale.} Decouples TSS values from model-specific regridding
+variance. Per-model $\sigma_{\text{obs}}$ would couple TSS to the
+idiosyncrasies of each model's grid (cell sizes, $\cos\varphi$ mass
+distribution, regridding artefacts at coastlines), so the cross-model
+min--max normalisation that feeds HMperf would be measuring a mixture of
+\emph{model fidelity} and \emph{regridding fidelity}. A single common
+$\sigma_{\text{obs}}$ removes that confound and preserves cross-model
+comparability for the downstream normalisation. The per-pixel comparison
+metrics (bias, RMSE, correlation, bias\_score) must stay on each model's
+own grid because they compare \emph{model field} to \emph{obs field} cell
+by cell, and the paper-era pipeline does not regrid models. The
+two-product setup costs the storage of one extra reference dataset on disk
+and a second loader path in \texttt{subselect.io}.
+
+\paragraph{Implementation.}
+\texttt{subselect.io.load\_single\_grid\_w5e5} (one file per variable,
+common grid) for $\sigma_{\text{obs}}$;
+\texttt{subselect.io.load\_w5e5} (per-model upscaled) for the per-pixel
+comparison. \texttt{Config.single\_grid\_reference\_root} (default
+\texttt{<data\_root>/reference/monthly\_upscaled}) and
+\texttt{Config.reference\_root} (default
+\texttt{<data\_root>/reference/monthly\_cmip6\_upscaled}) keep the two
+products separately addressable; both are TOML-overridable.
+
+\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+
 % =============================================================================
 \section{Future-response spread}\label{sec:spread}
 % =============================================================================

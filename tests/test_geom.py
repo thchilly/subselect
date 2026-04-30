@@ -256,6 +256,7 @@ def _build_tiny_country_config(tmp_path):
         cache_root=tmp_path / "cache",
         shapefile_path=gpkg,
         reference_root=data_root / "reference" / "monthly_cmip6_upscaled",
+        single_grid_reference_root=data_root / "reference" / "monthly_upscaled",
         cmip6_metadata_root=data_root / "CMIP6" / "metadata",
         results_root=tmp_path / "results",
     )
@@ -424,6 +425,7 @@ def test_lenient_includes_cell_where_polygon_overshoots_country_bbox_by_less_tha
         cache_root=tmp_path / "cache",
         shapefile_path=gpkg,
         reference_root=data_root / "reference" / "monthly_cmip6_upscaled",
+        single_grid_reference_root=data_root / "reference" / "monthly_upscaled",
         cmip6_metadata_root=data_root / "CMIP6" / "metadata",
         results_root=tmp_path / "results",
     )

@@ -37,6 +37,7 @@ def cache_config(tmp_path) -> Config:
         cache_root=tmp_path / "cache",
         shapefile_path=tmp_path / "shape.gpkg",
         reference_root=tmp_path / "data" / "reference" / "monthly_cmip6_upscaled",
+        single_grid_reference_root=tmp_path / "data" / "reference" / "monthly_upscaled",
         cmip6_metadata_root=tmp_path / "data" / "CMIP6" / "metadata",
         results_root=tmp_path / "results",
     )

@@ -60,6 +60,37 @@ def test_load_w5e5_missing_file_raises(synthetic_config):
         io.load_w5e5("tas", "AAA-MOD", config=synthetic_config)
 
 
+# ---------- single_grid_reference_path / load_single_grid_w5e5 -------------
+
+
+@pytest.mark.parametrize(
+    ("variable", "expected_filename"),
+    [
+        ("tas", "tas_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc"),
+        ("pr", "pr_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc"),
+        ("tasmax", "tasmax_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc"),
+        ("psl", "psl_w5e5_obsclim_mon_1991_2019_cmip6_upscaled.nc"),
+    ],
+)
+def test_single_grid_reference_path_per_variable_filename_templates(
+    synthetic_config, variable, expected_filename
+):
+    path = io.single_grid_reference_path(variable, config=synthetic_config)
+    assert path.name == expected_filename
+    # Single-grid files live directly under the reference root, no per-model dir.
+    assert path.parent == synthetic_config.single_grid_reference_root
+
+
+def test_single_grid_reference_path_unknown_variable_raises(synthetic_config):
+    with pytest.raises(ValueError, match="No single-grid reference filename template"):
+        io.single_grid_reference_path("hurs", config=synthetic_config)
+
+
+def test_load_single_grid_w5e5_missing_file_raises(synthetic_config):
+    with pytest.raises(FileNotFoundError, match="Single-grid W5E5 reference"):
+        io.load_single_grid_w5e5("tas", config=synthetic_config)
+
+
 # ---------- cmip6_path / load_cmip6 ----------------------------------------
 
 

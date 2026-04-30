@@ -11,7 +11,8 @@ Path resolution for `data_root` (highest priority first):
 1. Environment variable ``SUBSELECT_DATA_ROOT``.
 2. User TOML at ``~/.subselect.toml`` with a ``data_root`` key (and optionally
    ``cache_root`` / ``shapefile_path`` / ``reference_root`` /
-   ``cmip6_metadata_root`` / ``results_root`` overrides).
+   ``single_grid_reference_root`` / ``cmip6_metadata_root`` / ``results_root``
+   overrides).
 3. Repo-relative default ``<repo>/Data``, derived from the package install
    location.
 
@@ -20,9 +21,20 @@ Default layout (post-restructure 2026-04-30):
 - ``data_root``           → ``<repo>/Data``                 (input only)
 - ``cache_root``          → ``<repo>/cache``                (sibling of Data/, derived artefacts)
 - ``results_root``        → ``<repo>/results``              (sibling of Data/, legacy paper outputs)
-- ``shapefile_path``      → ``<data_root>/shapefiles/gadm/gadm_410-levels.gpkg``
-- ``reference_root``      → ``<data_root>/reference/monthly_cmip6_upscaled``
-- ``cmip6_metadata_root`` → ``<data_root>/CMIP6/metadata``
+- ``shapefile_path``              → ``<data_root>/shapefiles/gadm/gadm_410-levels.gpkg``
+- ``reference_root``              → ``<data_root>/reference/monthly_cmip6_upscaled``
+- ``single_grid_reference_root``  → ``<data_root>/reference/monthly_upscaled``
+- ``cmip6_metadata_root``         → ``<data_root>/CMIP6/metadata``
+
+Two reference products are kept side-by-side because the paper-era HPS
+pipeline uses both. ``reference_root`` (per-CMIP6-model upscaled) feeds the
+per-pixel model-vs-obs metrics (bias, RMSE, correlation, bias_score) where
+obs must live on each model's own grid. ``single_grid_reference_root``
+(single common grid) feeds the σ_obs scalar that goes into the TSS
+denominator: using a common grid here decouples TSS values from
+model-specific regridding variance and preserves cross-model comparability
+for downstream min-max normalisation. See ``documentation/methods.tex`` §
+Historical performance for the methodology entry.
 
 `cache_root` and `results_root` live at the repo level (siblings of Data/),
 not inside it, so changing `SUBSELECT_DATA_ROOT` does not relocate the cache
@@ -51,6 +63,7 @@ DEFAULT_RESULTS_ROOT = REPO_ROOT / "results"
 
 DEFAULT_SHAPEFILE_RELATIVE = Path("shapefiles") / "gadm" / "gadm_410-levels.gpkg"
 DEFAULT_REFERENCE_RELATIVE = Path("reference") / "monthly_cmip6_upscaled"
+DEFAULT_SINGLE_GRID_REFERENCE_RELATIVE = Path("reference") / "monthly_upscaled"
 DEFAULT_METADATA_RELATIVE = Path("CMIP6") / "metadata"
 
 HPS_VARIABLES: tuple[str, ...] = ("tas", "pr", "psl")
@@ -60,6 +73,7 @@ _PATH_OVERRIDE_KEYS: tuple[str, ...] = (
     "cache_root",
     "shapefile_path",
     "reference_root",
+    "single_grid_reference_root",
     "cmip6_metadata_root",
     "results_root",
 )
@@ -78,6 +92,7 @@ class Config:
     cache_root: Path
     shapefile_path: Path
     reference_root: Path
+    single_grid_reference_root: Path
     cmip6_metadata_root: Path
     results_root: Path
     reference_dataset: str = "W5E5"
@@ -98,6 +113,10 @@ class Config:
             ),
             reference_root=overrides.get(
                 "reference_root", data_root / DEFAULT_REFERENCE_RELATIVE
+            ),
+            single_grid_reference_root=overrides.get(
+                "single_grid_reference_root",
+                data_root / DEFAULT_SINGLE_GRID_REFERENCE_RELATIVE,
             ),
             cmip6_metadata_root=overrides.get(
                 "cmip6_metadata_root", data_root / DEFAULT_METADATA_RELATIVE

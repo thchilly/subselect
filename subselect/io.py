@@ -1,15 +1,34 @@
 """Data loaders for CMIP6, the W5E5 reference, country bboxes, and the model list.
 
-The legacy paper-era pipeline did no on-the-fly regridding (verified by grep
-of `legacy/cmip6-greece/GR_model_performance_HM.ipynb` during M3 prep): CMIP6
+The legacy paper-era pipeline did no on-the-fly regridding (verified during
+M7.0 against ``legacy/cmip6-greece/GR_model_performance_HM.ipynb``): CMIP6
 data lives on each model's native grid, observations are pre-upscaled to
-match each CMIP6 model's grid, and `subselect` consumes both as-is. M7 will
-verify this convention is the right one when it ports the HPS pipeline.
+match each CMIP6 model's grid for the per-pixel model-vs-obs metrics, and
+``subselect`` consumes both as-is. M7 confirmed and ported this convention.
 
-Reference filename templates (W5E5 from ISIMIP3a's gswp3-w5e5_obsclim product):
+Two observation reference products are handled side-by-side:
 
-- ``tas``, ``pr``, ``tasmax`` → ``<var>_gswp3-w5e5_obsclim_mon_1901_2019_<MODEL>.nc``
-- ``psl``                     → ``psl_w5e5_obsclim_mon_1991_2019_<MODEL>.nc``
+1. **Per-CMIP6-model upscaled** (``reference_root``,
+   ``Data/reference/monthly_cmip6_upscaled/<MODEL>/<file>.nc``): one file per
+   CMIP6 model, on each model's native grid. Used for the per-pixel
+   model-vs-obs comparison metrics — bias, RMSE, correlation, and the
+   per-pixel bias_score whose spatial mean is BVS. Filenames:
+
+   - ``tas``, ``pr``, ``tasmax`` →
+     ``<var>_gswp3-w5e5_obsclim_mon_1901_2019_<MODEL>.nc``
+   - ``psl`` → ``psl_w5e5_obsclim_mon_1991_2019_<MODEL>.nc``
+
+2. **Single-grid upscaled** (``single_grid_reference_root``,
+   ``Data/reference/monthly_upscaled/<file>.nc``): one file per variable on a
+   common grid shared across all models. Used for the **σ_obs scalar that
+   feeds the TSS denominator** — using a common grid here decouples TSS values
+   from model-specific regridding variance and preserves cross-model
+   comparability when the per-(variable, season) TSS values are min-max
+   normalised across the 35-model ensemble. Filenames:
+
+   - ``tas``, ``pr``, ``tasmax`` →
+     ``<var>_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc``
+   - ``psl`` → ``psl_w5e5_obsclim_mon_1991_2019_cmip6_upscaled.nc``
 
 The ``psl`` template is the period-limiting one (1991–2019, W5E5-only); the
 others span 1901–2019 from the merged GSWP3-W5E5 record. The 1995–2014
@@ -30,6 +49,15 @@ REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
     "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019_{model}.nc",
     "tasmax": "tasmax_gswp3-w5e5_obsclim_mon_1901_2019_{model}.nc",
     "psl": "psl_w5e5_obsclim_mon_1991_2019_{model}.nc",
+}
+
+# Single-grid (common-grid) variant used for the σ_obs scalar in the TSS
+# denominator. One file per variable, no per-model subdir.
+SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
+    "tas": "tas_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
+    "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
+    "tasmax": "tasmax_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
+    "psl": "psl_w5e5_obsclim_mon_1991_2019_cmip6_upscaled.nc",
 }
 
 CMIP6_DIR_TEMPLATE = "CMIP6/monthly/{variable}/{scenario}"
@@ -66,10 +94,52 @@ def reference_path(variable: str, model: str, config: Config | None = None) -> P
 
 
 def load_w5e5(variable: str, model: str, config: Config | None = None) -> xr.Dataset:
-    """Open the W5E5 reference dataset for one (variable, model) pair."""
+    """Open the per-CMIP6-model upscaled W5E5 reference dataset.
+
+    Used for the per-pixel model-vs-obs comparison metrics (bias, RMSE,
+    correlation, bias_score). For the σ_obs TSS-denominator scalar use
+    :func:`load_single_grid_w5e5` instead — it returns the common-grid
+    variant that decouples TSS from per-model regridding variance.
+    """
     path = reference_path(variable, model, config=config)
     if not path.is_file():
         raise FileNotFoundError(f"W5E5 reference file not found: {path}")
+    return xr.open_dataset(path)
+
+
+def single_grid_reference_path(
+    variable: str, config: Config | None = None
+) -> Path:
+    """Resolve the single-grid (common-grid) W5E5 reference path for one variable."""
+    config = config or Config.from_env()
+    template = SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES.get(variable)
+    if template is None:
+        raise ValueError(
+            f"No single-grid reference filename template for variable={variable!r}; "
+            f"known: {sorted(SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES)}"
+        )
+    return config.single_grid_reference_root / template
+
+
+def load_single_grid_w5e5(
+    variable: str, config: Config | None = None
+) -> xr.Dataset:
+    """Open the single-grid (common-grid) W5E5 reference dataset for one variable.
+
+    This is the dataset whose spatial-cycle σ feeds the TSS denominator
+    (Taylor 2001 R0=1 form). The per-CMIP6-model upscaled product
+    (:func:`load_w5e5`) is the wrong source for σ_obs because each model's
+    grid would yield a slightly different σ via regridding variance,
+    breaking cross-model comparability when TSS values are min-max
+    normalised across the 35-model ensemble. See
+    ``documentation/methods.tex`` § Historical performance for the
+    methodology entry.
+    """
+    path = single_grid_reference_path(variable, config=config)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Single-grid W5E5 reference file not found: {path}"
+        )
     return xr.open_dataset(path)
 
 

@@ -162,17 +162,15 @@ def test_greece_fixtures_loadable():
 
 
 @pytest.mark.regression
-@pytest.mark.xfail(
-    strict=True,
-    reason="Awaiting M7 — subselect.performance.compute_hps not yet implemented",
-)
 def test_greece_hps_regression():
     """Per-model HPS_<period> matches paper xlsx within ATOL_TARGET (1e-6).
 
     crop_method='bbox' matches the paper-era setting. Models reindexed to the
-    canonical 1..35 ordering before comparison.
+    canonical 1..35 ordering before comparison. Flipped from xfail to
+    expected-pass in M7 (2026-05-01); the 1e-6 target held without falling
+    back to the 1e-4 ladder step.
     """
-    from subselect.performance import compute_hps  # raises ImportError until M7
+    from subselect.performance import compute_hps
 
     expected = _load_expected_hps()
     actual = compute_hps("greece", scenario="ssp585", crop_method="bbox")
@@ -186,19 +184,17 @@ def test_greece_hps_regression():
 
 
 @pytest.mark.regression
-@pytest.mark.xfail(
-    strict=True,
-    reason="Awaiting M7 — subselect.performance.compute_metrics not yet implemented",
-)
 @pytest.mark.parametrize("variable", PAPER_VARS + DIAGNOSTIC_VARS)
 def test_greece_per_variable_metrics_regression(variable: str):
     """TSS (standard + Hirota) and bias_score (BVS) match paper within 1e-6.
 
-    Pins both TSS variants because the paper-era code reports both; M7 will
-    decide which one feeds HPS but the regression must reproduce both. tas/pr/psl
-    feed HPS; tasmax is a diagnostic variable per docs/historical_performance.md.
+    Pins both TSS variants because the paper-era code reports both;
+    ``compute_hps`` uses the standard ``_tss`` form for HPS but the
+    regression must reproduce both. tas/pr/psl feed HPS; tasmax is a
+    diagnostic variable per docs/historical_performance.md. Flipped from
+    xfail to expected-pass in M7 (2026-05-01); the 1e-6 target held.
     """
-    from subselect.performance import compute_metrics  # raises ImportError until M7
+    from subselect.performance import compute_metrics
 
     expected = _load_expected_per_variable_metrics(variable)
     actual = compute_metrics("greece", variable=variable, crop_method="bbox")

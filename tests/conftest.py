@@ -88,6 +88,7 @@ def synthetic_config(synthetic_data_root, synthetic_gpkg, tmp_path):
         cache_root=tmp_path / "cache",
         shapefile_path=synthetic_gpkg,
         reference_root=synthetic_data_root / "reference" / "monthly_cmip6_upscaled",
+        single_grid_reference_root=synthetic_data_root / "reference" / "monthly_upscaled",
         cmip6_metadata_root=synthetic_data_root / "CMIP6" / "metadata",
         results_root=tmp_path / "results",
     )
