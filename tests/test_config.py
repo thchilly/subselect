@@ -180,4 +180,4 @@ def test_frozen_methodology_constants_match_paper():
     assert config.reference_dataset == "W5E5"
     assert config.eval_window == (1995, 2014)
     assert config.future_window == (2081, 2100)
-    assert config.pre_industrial == (1850, 1900)
+    assert config.pre_industrial == (1850, 1899)

@@ -98,7 +98,11 @@ class Config:
     reference_dataset: str = "W5E5"
     eval_window: tuple[int, int] = (1995, 2014)
     future_window: tuple[int, int] = (2081, 2100)
-    pre_industrial: tuple[int, int] = (1850, 1900)
+    # 1850–1899 inclusive (50 years) — matches the paper-era spread notebook's
+    # `slice("1850-01-01", "1899-12-31")` (legacy GR_model_spread.ipynb line 190).
+    # IPCC AR6 conventionally uses 1850–1900 (51 years); the off-by-one is an
+    # original-work artefact pinned for regression-test parity.
+    pre_industrial: tuple[int, int] = (1850, 1899)
     hps_variables: tuple[str, ...] = HPS_VARIABLES
     diagnostic_variables: tuple[str, ...] = DIAGNOSTIC_VARIABLES
 

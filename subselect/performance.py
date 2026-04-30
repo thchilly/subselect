@@ -39,10 +39,17 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 import xarray as xr
+from joblib import Parallel, delayed
 
 from subselect import geom, io
 from subselect.config import Config
 from subselect.geom import CropMethod
+
+# Default joblib parallelism for the embarrassingly-parallel per-model loops
+# in compute_metrics and compute_change_signals. -1 uses every CPU core; tests
+# can pass n_jobs=1 to keep things deterministic.
+DEFAULT_N_JOBS = -1
+DEFAULT_BACKEND = "loky"  # process-based; safest for xarray + netCDF4 reads
 
 # Constants from the legacy notebook (line 84-85 of the HPS .ipynb).
 P_EXPONENT = 1.5  # bias-score nonlinearity
@@ -368,6 +375,39 @@ def _compute_obs_std_per_period(
     }
 
 
+def _per_model_metrics(
+    *,
+    model: str,
+    variable: str,
+    scenario: str,
+    country: str,
+    crop_method: CropMethod,
+    config: Config,
+    obs_std_per_period: dict[str, float],
+) -> tuple[str, dict[str, float] | None]:
+    """Compute every metric column for one (model, variable). Returns
+    ``(model, scalars)`` or ``(model, None)`` if the file is missing."""
+    try:
+        obs_clim_full, mod_clim_full, obs_full_ts = _model_obs_climatologies(
+            model=model, variable=variable, scenario=scenario,
+            country=country, crop_method=crop_method, config=config,
+        )
+    except FileNotFoundError:
+        return model, None
+    scalars: dict[str, float] = {}
+    for period in PERIODS:
+        scalars.update(
+            _per_variable_period_row(
+                obs_clim_full=obs_clim_full,
+                mod_clim_full=mod_clim_full,
+                obs_full_timeseries=obs_full_ts,
+                obs_std_per_period=obs_std_per_period,
+                period=period,
+            )
+        )
+    return model, scalars
+
+
 def compute_metrics(
     country: str,
     *,
@@ -376,6 +416,7 @@ def compute_metrics(
     crop_method: CropMethod = "bbox",
     config: Config | None = None,
     models: Iterable[str] | None = None,
+    n_jobs: int = DEFAULT_N_JOBS,
 ) -> pd.DataFrame:
     """Per-(model, period) metric table for one variable.
 
@@ -384,6 +425,12 @@ def compute_metrics(
     and each metric in ``PER_PERIOD_METRIC_COLUMNS`` plus ``tss`` and
     ``tss_hirota``. Mirrors
     ``results/<country>/assess_cmip6_<variable>_mon_perf_metrics_all_seasons_<country>.xlsx``.
+
+    The 35-model loop runs in parallel via ``joblib.Parallel`` with the loky
+    (process) backend by default — each worker opens its own NetCDF files,
+    so there is no shared xarray state to coordinate. Pass ``n_jobs=1`` for
+    serial execution (e.g. when debugging or when the joblib worker pool
+    overhead would dominate for a small models list).
     """
     config = config or Config.from_env()
     if models is None:
@@ -401,24 +448,20 @@ def compute_metrics(
     ]
     out = pd.DataFrame(index=models, columns=metric_columns, dtype=float)
 
-    for model in models:
-        try:
-            obs_clim_full, mod_clim_full, obs_full_ts = _model_obs_climatologies(
-                model=model, variable=variable, scenario=scenario,
-                country=country, crop_method=crop_method, config=config,
-            )
-        except FileNotFoundError:
-            continue  # missing model file → row stays NaN, matches paper behaviour
-        for period in PERIODS:
-            period_scalars = _per_variable_period_row(
-                obs_clim_full=obs_clim_full,
-                mod_clim_full=mod_clim_full,
-                obs_full_timeseries=obs_full_ts,
-                obs_std_per_period=obs_std_per_period,
-                period=period,
-            )
-            for col, val in period_scalars.items():
-                out.loc[model, col] = val
+    parallel = Parallel(n_jobs=n_jobs, backend=DEFAULT_BACKEND)
+    results = parallel(
+        delayed(_per_model_metrics)(
+            model=m, variable=variable, scenario=scenario,
+            country=country, crop_method=crop_method, config=config,
+            obs_std_per_period=obs_std_per_period,
+        )
+        for m in models
+    )
+    for model, scalars in results:
+        if scalars is None:
+            continue
+        for col, val in scalars.items():
+            out.loc[model, col] = val
     return out
 
 
