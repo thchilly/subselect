@@ -13,6 +13,10 @@ results/
 legacy/cmip6-greece/
 legacy/climpact/
 
+# Auto-generated Jupyter copies of legacy/LEGACY.md (e.g. created when the
+# Markdown is opened in a Jupyter-aware viewer). The .md is the source of truth.
+legacy/*.ipynb
+
 # Cache & build artefacts
 __pycache__/
 *.py[cod]
