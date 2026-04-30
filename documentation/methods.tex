@@ -147,6 +147,16 @@ by cell, and the paper-era pipeline does not regrid models. The
 two-product setup costs the storage of one extra reference dataset on disk
 and a second loader path in \texttt{subselect.io}.
 
+\paragraph{Paper-era parity caveat.} The spatial mean that reduces the
+single-grid per-pixel std-over-months map to the $\sigma_{\text{obs}}$
+scalar is computed \emph{unweighted}
+(\texttt{.mean(dim=['lat', 'lon'])}, legacy line 488), inconsistent with
+the $\cos\varphi$-weighted spatial mean used everywhere else in the
+pipeline. The framework reproduces this exactly for parity with the
+published Greece numbers (locked by
+\texttt{tests/test\_regression\_greece.py}). See
+\texttt{docs/refactor.md} known-limitations for the Phase 1+ correction.
+
 \paragraph{Implementation.}
 \texttt{subselect.io.load\_single\_grid\_w5e5} (one file per variable,
 common grid) for $\sigma_{\text{obs}}$;
