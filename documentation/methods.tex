@@ -169,6 +169,52 @@ products separately addressable; both are TOML-overridable.
 
 \paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
 
+\paragraph{Phase 1+ correction candidate: $\sigma_{\text{obs}}$ at native
+0.5\textdegree.} The single-grid product currently used for
+$\sigma_{\text{obs}}$
+(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
+1.25\textdegree~$\times$~1.875\textdegree, 144~$\times$~192) is the
+cmip6-grid \emph{upscaled} variant, not native W5E5. This was confirmed
+during the M9.2 bias-map investigation: the legacy paper notebook
+(\texttt{cell 5} of \texttt{GR\_model\_performance\_HM.ipynb}, line 30) reads
+$\sigma_{\text{obs}}$ from \texttt{ISIMIP3a/monthly\_upscaled/}, which is the
+upscaled-to-cmip6-grid product. The refactor faithfully replicates the
+paper's choice (case (a) in the σ\_obs sanity check). The native 0.5\textdegree{}
+single-grid W5E5 product is now stored at
+\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc} (360~$\times$~720,
+exposed via \texttt{subselect.io.load\_native\_w5e5}); recomputing
+$\sigma_{\text{obs}}$ at native resolution is a Phase 1+ candidate
+correction (alongside the cos$\varphi$-weighting fix flagged above).
+
+\subsection{Bias-map observed-mean panel: native 0.5\textdegree{} W5E5}\label{sec:performance-bias-map-obs}
+
+The bias-map figure (\texttt{cell 34} of
+\texttt{GR\_model\_performance\_HM.ipynb}; ported as
+\texttt{subselect.viz.performance\_figs.fig\_bias\_maps\_per\_variable}) has a
+top-row \emph{observed-mean} panel that displays the W5E5 reference field at
+high resolution for visual context, separate from the per-model bias panels
+below it. The legacy notebook reads this panel from
+\texttt{ISIMIP3a/monthly/<var>\_*.nc} (native 0.5\textdegree, 360~$\times$~720), not
+from the cmip6-grid upscaled product used for $\sigma_{\text{obs}}$.
+
+The M9.2 adapter
+(\texttt{subselect.viz.\_data\_adapters.build\_bias\_maps\_state})
+populates \texttt{observed\_maps[period][variable]} via
+\texttt{subselect.io.load\_native\_w5e5}, which resolves to
+\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc} (the canonical
+location for the native 0.5\textdegree{} product on this MacBook). This restores
+visual parity with the legacy reference figures (\textasciitilde 520 native pixels
+in the Greece bbox, vs the \textasciitilde 49 pixels the cmip6-grid upscaled
+product would have produced). Per-model bias panels remain unchanged — they
+use the per-CMIP6-model upscaled obs (\texttt{load\_w5e5}) since the bias is
+computed cell-by-cell on each model's own grid.
+
+\paragraph{Implementation.}
+\texttt{subselect.io.load\_native\_w5e5(variable)} returns the native
+0.5\textdegree{} dataset; the loader sorts by lat/lon on read because
+ISIMIP3a files are stored with descending latitude (legacy cell 5 lines
+70--73 do the same). Decided 2026-05-01.
+
 % =============================================================================
 \section{Future-response spread}\label{sec:spread}
 % =============================================================================

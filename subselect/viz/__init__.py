@@ -1,6 +1,9 @@
-"""Figure-generation submodule. Ports paper-era figure code as-is in M9.
+"""Figure-generation submodule.
 
-Every helper in this package gains a `backend: Literal["matplotlib", "plotly"]`
-kwarg per docs/refactor.md line 259 so the same code paths feed the static
-paper/poster figures and the Phase 4 web app.
+Each ``fig_*`` function returns a ``matplotlib.figure.Figure`` and carries a
+module-level ``CATEGORY`` constant used by ``scripts/regenerate_paper_figures.py``
+to route output to ``results/<country>/figures/<CATEGORY>/<filename>.png``.
+
+Cell ports are verbatim from the legacy ``cmip6-greece/`` and ``climpact/``
+notebooks; permitted deviations are listed in ``scripts/m9_cell_map.md``.
 """

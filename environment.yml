@@ -69,12 +69,14 @@ dependencies:
 
   # ---- Machine learning ------------------------------------------------------
   - scikit-learn               # PCA, KMeans, MDS, TSNE, MinMaxScaler
+  - scikit-image               # SSIM (M9 figure regression verification)
 
   # ---- Visualization (matches paper figure stack) ---------------------------
   - matplotlib
   - seaborn
   - cmocean                    # colormaps (paper figures use these)
   - cmcrameri                  # colormaps (paper figures use these)
+  - adjusttext                 # smart label placement (M9 ports — cells 25–28 seasonal_perf scatter)
   - plotly                     # for Phase 4 web-app interactive components
 
   # ---- Misc utilities --------------------------------------------------------

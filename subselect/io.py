@@ -53,11 +53,32 @@ REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
 
 # Single-grid (common-grid) variant used for the σ_obs scalar in the TSS
 # denominator. One file per variable, no per-model subdir.
+#
+# NB: this is the **cmip6-grid upscaled** product (1.25° × 1.875°), not native
+# W5E5. The legacy paper notebook (cell 5 of GR_model_performance_HM.ipynb,
+# lines 27–30) reads from ``ISIMIP3a/monthly_upscaled/*_cmip6_upscaled.nc`` for
+# σ_obs, so M7 reproduces the paper-era choice. The native 0.5° W5E5 product
+# is exposed separately via :func:`load_native_w5e5` for figure-display use
+# (e.g. the bias-map observed-mean top panel in cell 34).
 SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
     "tas": "tas_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
     "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
     "tasmax": "tasmax_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
     "psl": "psl_w5e5_obsclim_mon_1991_2019_cmip6_upscaled.nc",
+}
+
+# Native 0.5° single-grid W5E5 — used for observed-mean display panels (e.g.
+# the bias-map cell 34 top panel). The legacy notebook reads these via
+# ``base_path/ISIMIP3a/monthly/<var>_gswp3-w5e5_obsclim_mon_1901_2019.nc``;
+# the refactor's canonical home is ``Data/reference/monthly_05/``. psl is the
+# W5E5 single-product (no GSWP3 merge), 1991–2019. tasmax has a hyphen-
+# separated date range in its filename (legacy ISIMIP3a artefact — kept as-is
+# to match the canonical filename).
+NATIVE_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
+    "tas": "tas_gswp3-w5e5_obsclim_mon_1901_2019.nc",
+    "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019.nc",
+    "tasmax": "tasmax_gswp3-w5e5_obsclim_mon_1901-2019.nc",
+    "psl": "psl_w5e5_obsclim_mon_1991_2019.nc",
 }
 
 CMIP6_DIR_TEMPLATE = "CMIP6/monthly/{variable}/{scenario}"
@@ -126,13 +147,22 @@ def load_single_grid_w5e5(
 ) -> xr.Dataset:
     """Open the single-grid (common-grid) W5E5 reference dataset for one variable.
 
-    This is the dataset whose spatial-cycle σ feeds the TSS denominator
-    (Taylor 2001 R0=1 form). The per-CMIP6-model upscaled product
-    (:func:`load_w5e5`) is the wrong source for σ_obs because each model's
-    grid would yield a slightly different σ via regridding variance,
-    breaking cross-model comparability when TSS values are min-max
-    normalised across the 35-model ensemble. See
-    ``documentation/methods.tex`` § Historical performance for the
+    Returns the **cmip6-grid upscaled** product (1.25° × 1.875°,
+    ``Data/reference/monthly_upscaled/<var>_*_cmip6_upscaled.nc``). This is
+    the σ_obs source in M7's TSS denominator and reproduces the paper-era
+    choice — the legacy notebook (``cell 5`` of
+    ``GR_model_performance_HM.ipynb``) reads from
+    ``ISIMIP3a/monthly_upscaled/<var>_*_cmip6_upscaled.nc`` for σ_obs. The
+    per-CMIP6-model upscaled product (:func:`load_w5e5`) is the wrong source
+    for σ_obs because each model's grid would yield a slightly different σ
+    via regridding variance, breaking cross-model comparability when TSS
+    values are min-max normalised across the 35-model ensemble.
+
+    For the **native 0.5°** W5E5 product (used by figure-display code only —
+    e.g. the bias-map observed-mean top panel in cell 34) call
+    :func:`load_native_w5e5` instead.
+
+    See ``documentation/methods.tex`` § Historical performance for the
     methodology entry.
     """
     path = single_grid_reference_path(variable, config=config)
@@ -141,6 +171,62 @@ def load_single_grid_w5e5(
             f"Single-grid W5E5 reference file not found: {path}"
         )
     return xr.open_dataset(path)
+
+
+def native_reference_path(
+    variable: str, config: Config | None = None
+) -> Path:
+    """Resolve the native 0.5° W5E5 reference path for one variable.
+
+    Canonical location: ``<data_root>/reference/monthly_05/<filename>``.
+    """
+    config = config or Config.from_env()
+    template = NATIVE_REFERENCE_FILENAME_TEMPLATES.get(variable)
+    if template is None:
+        raise ValueError(
+            f"No native reference filename template for variable={variable!r}; "
+            f"known: {sorted(NATIVE_REFERENCE_FILENAME_TEMPLATES)}"
+        )
+    return config.data_root / "reference" / "monthly_05" / template
+
+
+def load_native_w5e5(
+    variable: str, config: Config | None = None
+) -> xr.Dataset:
+    """Open the native 0.5° single-grid W5E5 reference dataset for one variable.
+
+    Returns the un-upscaled, native-grid GSWP3-W5E5 (or W5E5 for ``psl``)
+    product at 0.5° × 0.5° resolution (360 × 720 global grid). This is the
+    source the legacy ``cell 5`` of ``GR_model_performance_HM.ipynb`` (lines
+    50–60, ``gswp3_raw_display_path``) reads for the bias-map figure's
+    observed-mean top panel. Use this loader **for figure display only** —
+    the σ_obs scalar in the TSS denominator goes through
+    :func:`load_single_grid_w5e5` which returns the cmip6-grid upscaled
+    variant for paper-era parity (case (a) in the M9.2 σ_obs sanity check;
+    Phase 1+ correction candidate documented in
+    ``documentation/methods.tex``).
+
+    Canonical path: ``<data_root>/reference/monthly_05/<var>_*.nc``. No
+    fallback — earlier copies under ``Data/to_dispose/ISIMIP3a/monthly/``
+    were SSD bit-rot and have been deleted.
+    """
+    path = native_reference_path(variable, config=config)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Native W5E5 reference file not found: {path}. "
+            f"Re-download from ISIMIP3a or restore from backup; the "
+            f"refactor expects native 0.5° obs at <data_root>/reference/monthly_05/."
+        )
+    ds = xr.open_dataset(path)
+    # Native ISIMIP3a files have descending latitude (90 → -90); xarray slice
+    # requires monotonic ascending. The legacy cell 5 sorts on read (lines
+    # 70–73 of GR_model_performance_HM.ipynb); we mirror that here so bbox
+    # crops via slice() return the expected pixel band.
+    if "lat" in ds.coords:
+        ds = ds.sortby("lat")
+    if "lon" in ds.coords:
+        ds = ds.sortby("lon")
+    return ds
 
 
 def cmip6_dir(variable: str, scenario: str, config: Config | None = None) -> Path:
