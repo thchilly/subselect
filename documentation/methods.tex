@@ -215,6 +215,62 @@ computed cell-by-cell on each model's own grid.
 ISIMIP3a files are stored with descending latitude (legacy cell 5 lines
 70--73 do the same). Decided 2026-05-01.
 
+\subsection{Methodology corrections (post-paper)}\label{sec:performance-corrections}
+
+After the Phase 0 anchor (git tag \texttt{phase-0-complete}, commit
+\texttt{fb7527f}), two methodology corrections were applied to
+$\sigma_{\text{obs}}$. Both shift TSS values slightly (typically $<\!1\%$
+per model) and therefore shift HMperf and the model rankings. The
+corrected behaviour is now canonical for the package; the paper-era
+behaviour is preserved at the \texttt{phase-0-complete} tag and the
+paper-era xlsx outputs are archived under
+\texttt{documentation/historical\_paper\_outputs/} for traceability.
+
+\paragraph{Correction 1: $\cos\varphi$-weighted spatial mean.}
+The paper-era code computed the spatial mean that reduces the per-pixel
+std-over-months map to the $\sigma_{\text{obs}}$ scalar via an
+\emph{unweighted} \texttt{.mean(dim=['lat', 'lon'])} (legacy line 488).
+This was inconsistent with the $\cos\varphi$-weighted spatial mean used
+everywhere else in the pipeline (per-model \texttt{std\_dev},
+\texttt{bias\_score}, all per-pixel comparison metrics). The corrected
+pipeline routes the $\sigma_{\text{obs}}$ spatial mean through
+\texttt{subselect.performance.\_spatial\_weighted\_mean}, the same
+$\cos\varphi$-weighted helper that every other spatial mean uses.
+
+\paragraph{Correction 2: native 0.5\textdegree{} reference for $\sigma_{\text{obs}}$.}
+The paper-era code read $\sigma_{\text{obs}}$ from the cmip6-grid
+upscaled product (\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
+1.25\textdegree~$\times$~1.875\textdegree, 144~$\times$~192). The
+corrected pipeline reads from the native 0.5\textdegree{} single-grid
+product (\texttt{Data/reference/monthly\_05/<var>\_*.nc},
+0.5\textdegree~$\times$~0.5\textdegree, 360~$\times$~720) via
+\texttt{subselect.io.load\_native\_w5e5}. The native product is the
+direct W5E5 obs without an upscaling pre-processing step, so
+$\sigma_{\text{obs}}$ no longer carries upscaling-imprint variance.
+
+\paragraph{Why these are correct.}
+Both corrections remove confounds that should not be in the
+$\sigma_{\text{obs}}$ scalar. (1) An unweighted spatial mean
+double-counts high-latitude pixels relative to their actual area; the
+rest of the pipeline uses $\cos\varphi$ weights for exactly this reason,
+and the paper-era inconsistency was an oversight rather than a
+methodology choice. (2) Computing $\sigma_{\text{obs}}$ on a coarser
+grid than the per-pixel metrics introduces resolution-dependent
+smoothing into the TSS denominator that has no physical basis.
+
+\paragraph{Regression contract.}
+The new contract pins parquet snapshots of the corrected pipeline
+outputs (\texttt{compute\_metrics} per variable, \texttt{compute\_hps},
+\texttt{compute\_change\_signals}) under
+\texttt{tests/fixtures/regression\_corrected/}. The new
+\texttt{tests/test\_regression\_corrected.py} asserts bit-identity at
+\texttt{1e-12} against these snapshots. The previous M3 paper-xlsx
+regression test (\texttt{tests/test\_regression\_greece.py}) is dropped:
+its purpose was to prove the port preserved the paper's numbers, which
+is captured by the \texttt{phase-0-complete} tag.
+
+\paragraph{Decided.} 2026-05-02, package version 0.1.0.dev0.
+
 % =============================================================================
 \section{Future-response spread}\label{sec:spread}
 % =============================================================================

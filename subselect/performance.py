@@ -249,21 +249,19 @@ def _pixel_metrics_for_period(
 
 
 def _scalar_obs_std(
-    single_grid_clim: xr.DataArray, months: Iterable[int]
+    obs_clim: xr.DataArray, months: Iterable[int]
 ) -> float:
-    """σ_obs scalar for the TSS denominator: spatial mean of the per-pixel
-    std-over-months on the single-grid obs.
+    """σ_obs scalar for the TSS denominator: cos(lat)-weighted spatial mean
+    of the per-pixel std-over-months on the native-resolution observed
+    climatology.
 
-    Uses the country-cropped single-grid climatology so the spatial average
-    runs over the same geographic footprint as the model side, just on a
-    different grid (decoupling regridding variance from TSS — see the M7.0
-    methodology entry). Spatial mean is **unweighted** to match the legacy
-    notebook line 488 (``.mean(dim=['lat', 'lon'])``); the inconsistency
-    with the cos(lat)-weighted model-side metrics is intentional parity
-    with the published paper, not a methodology choice.
+    Uses the country-cropped native-grid climatology so the spatial average
+    runs over the same geographic footprint as the model side. The spatial
+    mean is cos(lat)-weighted, consistent with every other spatial mean in
+    the pipeline (per-model std_dev, bias_score, etc.).
     """
-    sel = _select_months(single_grid_clim, months)
-    return float(sel.std(dim="month").mean(dim=["lat", "lon"]).values)
+    sel = _select_months(obs_clim, months)
+    return _spatial_weighted_mean(sel.std(dim="month"))
 
 
 def _per_variable_period_row(
@@ -358,13 +356,13 @@ def _model_obs_climatologies(
 def _compute_obs_std_per_period(
     variable: str, country: str, crop_method: CropMethod, config: Config
 ) -> dict[str, float]:
-    """σ_obs scalars per period from the single-grid obs reference.
+    """σ_obs scalars per period from the native 0.5° W5E5 obs reference.
 
     Loaded once per variable, used as the TSS denominator across all 35
-    models. See ``documentation/methods.tex`` § Historical performance for
-    the two-tier obs-reference rationale.
+    models. See ``documentation/methods.tex`` § Methodology corrections
+    (post-paper) for the native-grid + cos(lat)-weighted choice.
     """
-    obs_full = io.load_single_grid_w5e5(variable, config=config)[variable]
+    obs_full = io.load_native_w5e5(variable, config=config)[variable]
     obs_full = _open_and_crop(obs_full, country, crop_method, config)
     obs_full = _normalise_time_to_first_of_month(obs_full)
     obs_full = _slice_eval_window(obs_full, config.eval_window)
