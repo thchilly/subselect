@@ -127,30 +127,21 @@ def render(
                 fig, perf_dir / f"{country}_{var}_seasonal_perf_revised.png",
             )
 
-        # Annual + 4-season Taylor
-        figs = performance_figs.fig_annual_taylor_per_variable(
-            variables=["tas", "pr", "psl", "tasmax"],
+        # Composite Taylor (15 panels + shared legend) replaces the 12
+        # individual annual + 4-season per-variable Taylor figures.
+        # ``fig_annual_taylor_per_variable`` and ``fig_4season_taylor_per_variable``
+        # remain in the module for backwards compatibility but are no longer
+        # invoked by the entry point.
+        fig = performance_figs.fig_composite_taylor(
             perf_metrics=state.performance_metrics,
             observed_std_dev_df=state.observed_std_dev,
             cmip6_models=cmip6_models_meta,
             model_ids=model_ids,
+            country=country,
         )
-        for var, fig in figs.items():
-            written[f"{var}_annual_taylor"] = _save(
-                fig, perf_dir / f"{country}_{var}_annual_taylor.png",
-            )
-
-        figs = performance_figs.fig_4season_taylor_per_variable(
-            variables=["tas", "pr", "psl", "tasmax"],
-            perf_metrics=state.performance_metrics,
-            observed_std_dev_df=state.observed_std_dev,
-            cmip6_models=cmip6_models_meta,
-            model_ids=model_ids,
+        written["composite_taylor"] = _save(
+            fig, perf_dir / f"{country}_composite_taylor.png",
         )
-        for var, fig in figs.items():
-            written[f"{var}_4season_taylor"] = _save(
-                fig, perf_dir / f"{country}_{var}_4season_taylor.png",
-            )
 
         # Bias maps
         has_bias = (

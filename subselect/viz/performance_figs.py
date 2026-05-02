@@ -1308,6 +1308,210 @@ def fig_4season_taylor_per_variable(
 
 
 # --------------------------------------------------------------------------
+# Composite Taylor figure — single 15-panel diagram replacing
+# fig_annual_taylor_per_variable + fig_4season_taylor_per_variable.
+# --------------------------------------------------------------------------
+
+_COMPOSITE_VAR_TITLE = {
+    "tas": "Temperature",
+    "pr": "Precipitation",
+    "psl": "Sea-Level Pressure",
+}
+_COMPOSITE_SEASONS = ("DJF", "MAM", "JJA", "SON")
+_COMPOSITE_PAD_HIGH = 0.10
+_COMPOSITE_ANNUAL_INNER_CUT_MAX = 0.30
+_COMPOSITE_ANNUAL_INNER_CUT_PAD = 0.10
+
+
+def _composite_data_driven_srange(
+    *,
+    variable: str,
+    season_or_annual: str,
+    perf_metrics: Dict[str, pd.DataFrame],
+    refstd: float,
+    is_annual: bool,
+) -> tuple[float, float]:
+    """Choose ``srange = (low, high)`` for one composite-Taylor panel.
+
+    Upper bound is data-driven (``max_ratio + PAD_HIGH``).
+    Lower bound: annual keeps a small donut cut, capped to leave room for
+    the smallest model marker; seasonal is always full-quadrant from 0.
+    """
+    ref = max(refstd, 1e-12)
+    std_series = pd.to_numeric(
+        perf_metrics[variable][f"{season_or_annual}_std_dev"], errors="coerce",
+    )
+    ratios = std_series.values / ref
+    finite = ratios[np.isfinite(ratios)]
+    if finite.size == 0:
+        return (0.0, 1.5)
+
+    high = float(np.max(finite)) + _COMPOSITE_PAD_HIGH
+    if is_annual:
+        min_ratio = float(np.min(finite))
+        low = max(
+            0.0,
+            min(_COMPOSITE_ANNUAL_INNER_CUT_MAX,
+                min_ratio - _COMPOSITE_ANNUAL_INNER_CUT_PAD),
+        )
+    else:
+        low = 0.0
+    return (round(low, 2), round(high, 2))
+
+
+def _draw_taylor_panel(
+    fig: plt.Figure,
+    subplotspec,
+    variable: str,
+    season_or_annual: str,
+    *,
+    perf_metrics: Dict[str, pd.DataFrame],
+    observed_std_dev_df: pd.DataFrame,
+    cmip6_models: pd.DataFrame,
+    model_ids: dict,
+):
+    """Draw one Taylor panel inside *subplotspec*.
+
+    Mirrors the per-panel logic of ``fig_annual_taylor_per_variable`` (annual)
+    and ``fig_4season_taylor_per_variable`` (seasonal); the only difference is
+    that the figure / rect arguments come from a master GridSpec slot.
+    """
+    from subselect.viz.taylor import TaylorDiagram
+    from mpl_toolkits.axisartist import grid_finder as GF
+
+    is_annual = season_or_annual == "annual"
+    refstd = float(observed_std_dev_df[variable][season_or_annual])
+    srange = _composite_data_driven_srange(
+        variable=variable, season_or_annual=season_or_annual,
+        perf_metrics=perf_metrics, refstd=refstd, is_annual=is_annual,
+    )
+
+    dia = TaylorDiagram(
+        refstd=refstd, fig=fig, rect=subplotspec, label="Observed", srange=srange,
+    )
+
+    for model_name in cmip6_models["model"].tolist():
+        model_id = model_ids[model_name]
+        std_val = perf_metrics[variable].loc[model_name, f"{season_or_annual}_std_dev"]
+        r_val = perf_metrics[variable].loc[model_name, f"{season_or_annual}_corr"]
+        if not (np.isfinite(std_val) and np.isfinite(r_val)):
+            continue
+        r_val = float(np.clip(r_val, -1.0, 1.0))
+        dia.add_sample(
+            stddev=float(std_val), corrcoef=r_val,
+            marker=f"${model_id}$", ls="",
+            ms=8 if model_id < 10 else 11,
+            label=model_name,
+        )
+
+    # Declutter std-dev ticks to ~7 evenly-spaced values, 1 decimal place,
+    # so dense panels remain readable in the composite.
+    n_ticks = 7
+    gh = dia._ax.get_grid_helper()
+    tick_vals = np.linspace(dia.smin, dia.smax, n_ticks)
+    tick_vals = np.unique(np.round(tick_vals, 2))
+    gh.grid_finder.grid_locator2 = GF.FixedLocator(tick_vals)
+    gh.grid_finder.tick_formatter2 = GF.DictFormatter(
+        {t: f"{t:.1f}" for t in tick_vals}
+    )
+
+    contours = dia.add_contours(levels=10 if is_annual else 6, colors="0.5")
+    plt.clabel(contours, inline=1, fontsize=10 if is_annual else 9, fmt="%.1f")
+    dia.add_grid()
+    dia._ax.axis[:].major_ticks.set_tick_out(True)
+    for axis_name in ("left", "top"):
+        dia._ax.axis[axis_name].label.set_fontsize(12)
+
+    if is_annual:
+        dia._ax.set_title(_COMPOSITE_VAR_TITLE[variable], fontsize=14, pad=12)
+    else:
+        dia._ax.set_title(season_or_annual.upper(), fontsize=13)
+    return dia
+
+
+def fig_composite_taylor(
+    perf_metrics: Dict[str, pd.DataFrame],
+    observed_std_dev_df: pd.DataFrame,
+    cmip6_models: pd.DataFrame,
+    model_ids: dict,
+    country: str,
+) -> plt.Figure:
+    """Single composite Taylor figure: 15 panels (3 annual + 12 seasonal) +
+    one shared 6×6 legend, replacing the 12 individual Taylor figures.
+
+    Layout (top to bottom):
+        Row 1  — Annual Taylor (tas, pr, psl) — donut quadrants.
+        Row 2  — Shared legend (★ Observed + 35 numbered models, 6×6 grid).
+        Rows 3-5 — Seasonal Taylor for tas / pr / psl (DJF, MAM, JJA, SON);
+                   each row labelled on the left via ``fig.text``.
+    """
+    from matplotlib.gridspec import GridSpec
+
+    fig = plt.figure(figsize=(18, 22))
+
+    upper_total = 7 + 2.5
+    lower_total = 5.0 * 3
+    gs_outer = GridSpec(
+        2, 1, figure=fig,
+        height_ratios=[upper_total, lower_total],
+        hspace=0.08, top=0.94, left=0.05,
+    )
+    gs_upper = gs_outer[0].subgridspec(2, 1, height_ratios=[7, 2.5], hspace=0.30)
+    gs_seasonal = gs_outer[1].subgridspec(3, 1, height_ratios=[1, 1, 1], hspace=0.30)
+
+    # Annual row: 3 Taylor panels, capture first for shared-legend handles.
+    gs_annual = gs_upper[0].subgridspec(1, 3, wspace=0.12)
+    first_dia = None
+    for col, variable in enumerate(("tas", "pr", "psl")):
+        dia = _draw_taylor_panel(
+            fig, gs_annual[0, col], variable, "annual",
+            perf_metrics=perf_metrics, observed_std_dev_df=observed_std_dev_df,
+            cmip6_models=cmip6_models, model_ids=model_ids,
+        )
+        if first_dia is None:
+            first_dia = dia
+
+    # Shared legend block (6 cols × 6 rows = 36 entries).
+    ax_legend = fig.add_subplot(gs_upper[1])
+    ax_legend.axis("off")
+    handles = list(first_dia.samplePoints)
+    labels = [h.get_label() for h in handles]
+    ax_legend.legend(
+        handles, labels, ncol=6, loc="center",
+        bbox_to_anchor=(0.0, 0.0, 1.0, 1.0), mode="expand",
+        fontsize=13, markerscale=1.6, frameon=False,
+        handlelength=1.5, columnspacing=3.5, labelspacing=0.7, numpoints=1,
+    )
+
+    # Seasonal rows — full-quadrant Taylor + figure-coord row label.
+    seasonal_rows = [
+        ("tas", "Seasonal Temperature"),
+        ("pr", "Seasonal Precipitation"),
+        ("psl", "Seasonal Sea-Level Pressure"),
+    ]
+    for i, (variable, row_label) in enumerate(seasonal_rows):
+        gs_seasons = gs_seasonal[i].subgridspec(1, 4, wspace=0.30)
+        for col, season in enumerate(_COMPOSITE_SEASONS):
+            _draw_taylor_panel(
+                fig, gs_seasons[0, col], variable, season,
+                perf_metrics=perf_metrics, observed_std_dev_df=observed_std_dev_df,
+                cmip6_models=cmip6_models, model_ids=model_ids,
+            )
+        slot_bbox = gs_seasonal[i].get_position(fig)
+        y_center = (slot_bbox.y0 + slot_bbox.y1) / 2
+        fig.text(
+            0.015, y_center, row_label,
+            rotation=90, ha="center", va="center", fontsize=14,
+        )
+
+    fig.suptitle(
+        f"Annual and seasonal Taylor diagrams over {country.capitalize()}",
+        fontsize=16, x=0.45, y=0.99,
+    )
+    return fig
+
+
+# --------------------------------------------------------------------------
 # Cell 34 — Bias maps per variable (verbatim cell loop)
 # loop period set is kwarg-controlled per user direction; cell 34 had seasonal
 # entries commented out.
