@@ -81,6 +81,34 @@ def test_clear(tmp_path: Path) -> None:
     assert not cache.has("b")
 
 
+def test_cross_scope_invalidation(tmp_path: Path) -> None:
+    """A per-country artefact whose dep set includes the global cache's
+    ``catalog.json`` must auto-invalidate when the global cache mutates.
+
+    This is the cross-scope invalidation rule: any per-country derivation
+    that consumes a global-cache artefact (climatologies, σ_obs grids,
+    annual fields, etc.) lists ``cache/_global/catalog.json`` as a dep so
+    saves to the global cache propagate the invalidation downstream.
+    """
+    global_cache = Cache.global_cache(tmp_path)
+    country_cache = Cache("greece", tmp_path)
+
+    # Populate a global artefact, then a per-country artefact that depends
+    # on the global catalog.
+    global_cache.save("clim", pd.DataFrame({"v": [1.0, 2.0]}), deps=[])
+    catalog_dep = [tmp_path / "_global" / "catalog.json"]
+    country_cache.save("derived", pd.DataFrame({"v": [10.0, 20.0]}), deps=catalog_dep)
+    assert country_cache.is_fresh("derived", catalog_dep)
+
+    # Mutate the global cache by saving a new artefact — this rewrites
+    # catalog.json and advances its mtime.
+    time.sleep(0.05)
+    global_cache.save("other_clim", pd.DataFrame({"v": [3.0, 4.0]}), deps=[])
+
+    # The per-country derivation should now be stale.
+    assert not country_cache.is_fresh("derived", catalog_dep)
+
+
 def test_dataclass_round_trip(tmp_path: Path) -> None:
     from subselect.state import ProfileSignals
 

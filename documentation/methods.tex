@@ -595,6 +595,23 @@ the cache architecture, not a methodology change. The new values are
 the canonical regression-test contract from the
 \texttt{cache-globalized} tag onward.
 
+\paragraph{Cross-scope invalidation.} Per-country artefacts that derive
+from global-cache contents include
+\texttt{cache/\_global/catalog.json} in their dependency list. Saves
+into the global cache rewrite this catalog (its mtime advances), so
+the next \texttt{is\_fresh} check on any downstream per-country
+artefact returns \texttt{False} and triggers a recompute. This
+prevents the failure mode where a global-cache implementation change
+or partial rebuild leaves stale per-country derivations: any global
+mutation now propagates invalidation downstream. The rule applies to
+\texttt{observed\_std\_dev}, \texttt{performance\_metrics\_<var>},
+\texttt{monthly\_means\_<var>\_*}, \texttt{composite\_hps},
+\texttt{composite\_hps\_full}, \texttt{change\_signals},
+\texttt{long\_term\_spread}, \texttt{pre\_industrial\_spread}, and
+\texttt{annual\_timeseries\_<var>}. A unit test in
+\texttt{tests/test\_cache.py::test\_cross\_scope\_invalidation} pins
+the contract.
+
 \paragraph{Performance footprint.} Cold global compute: $\sim$5–7 min
 (one-time per machine; 35 models $\times$ 4 vars $\times$ 4 SSPs
 NetCDF reads producing 1380 zarr entries totalling $\sim$3 GB). Warm

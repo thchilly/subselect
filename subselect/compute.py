@@ -133,7 +133,9 @@ def annual_timeseries(country: str, config: Config, cache: Cache) -> dict[str, p
     out: dict[str, pd.DataFrame] = {}
     for variable in TIMESERIES_VARIABLES:
         key = f"annual_timeseries__{variable}"
-        deps = _cmip6_inputs(variable, config)
+        # The country annual TS consumes the cached global annual_field zarr,
+        # so any global-cache rebuild must invalidate this entry.
+        deps = _cmip6_inputs(variable, config) + _global_catalog_dep(config)
         if cache.is_fresh(key, deps):
             out[variable] = cache.load(key)
             continue
@@ -157,6 +159,16 @@ def _cmip6_inputs(variable: str, config: Config) -> list[Path]:
         if d.is_dir():
             paths.extend(sorted(d.glob("*.nc"))[:1])  # one file per dir is enough
     return paths
+
+
+def _global_catalog_dep(config: Config) -> list[Path]:
+    """Cross-scope invalidation hook: every per-country artefact that derives
+    from a global-cache artefact must include this in its dep list. The
+    global catalog's mtime advances whenever ``compute_global`` writes any
+    artefact (saves rewrite ``cache/_global/catalog.json``), so any global
+    rebuild auto-invalidates downstream per-country derivations.
+    """
+    return [config.cache_root / "_global" / "catalog.json"]
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +486,13 @@ def fused_performance_pass(
         mm[variable] = {"cmip6": cmip_df, "obs": obs_df}
 
     obs_std_df = pd.DataFrame(obs_std_columns, index=list(PERIODS))
-    obs_std_deps = sum((_reference_inputs(v, config) for v in ALL_VARIABLES), [])
+    # σ_obs is derived from the cached native_sigma_obs global artefact.
+    # Including the global catalog as a dep means any global-cache rebuild
+    # (or invalidation) auto-refreshes σ_obs and everything downstream of it.
+    obs_std_deps = (
+        sum((_reference_inputs(v, config) for v in ALL_VARIABLES), [])
+        + _global_catalog_dep(config)
+    )
     obs_std_key = "observed_std_dev"
     if cache.is_fresh(obs_std_key, obs_std_deps):
         obs_std_df = cache.load(obs_std_key)
@@ -508,7 +526,10 @@ def composite_hps(
         EPS_HPS, PERIODS, compute_hps, minmax_normalize,
     )
 
-    deps = sum((_cmip6_inputs(v, config) + _reference_inputs(v, config) for v in HPS_VARIABLES), [])
+    deps = (
+        sum((_cmip6_inputs(v, config) + _reference_inputs(v, config) for v in HPS_VARIABLES), [])
+        + _global_catalog_dep(config)
+    )
 
     key_hps = "composite_hps"
     if cache.is_fresh(key_hps, deps):
@@ -547,7 +568,10 @@ def composite_hps(
 def observed_std_dev(country: str, config: Config, cache: Cache) -> pd.DataFrame:
     from subselect.performance import PERIODS, _compute_obs_std_per_period
 
-    deps = sum((_reference_inputs(v, config) for v in ALL_VARIABLES), [])
+    deps = (
+        sum((_reference_inputs(v, config) for v in ALL_VARIABLES), [])
+        + _global_catalog_dep(config)
+    )
     key = "observed_std_dev"
     if cache.is_fresh(key, deps):
         return cache.load(key)
@@ -599,7 +623,11 @@ def monthly_means(
     out: dict[str, dict[str, pd.DataFrame]] = {}
     parallel = Parallel(n_jobs=n_jobs, backend=DEFAULT_BACKEND)
     for variable in ALL_VARIABLES:
-        deps = _cmip6_inputs(variable, config) + _reference_inputs(variable, config)
+        deps = (
+            _cmip6_inputs(variable, config)
+            + _reference_inputs(variable, config)
+            + _global_catalog_dep(config)
+        )
         cmip_key = f"monthly_means__{variable}__cmip6"
         obs_key = f"monthly_means__{variable}__obs"
         if cache.is_fresh(cmip_key, deps) and cache.is_fresh(obs_key, deps):
