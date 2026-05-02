@@ -237,7 +237,7 @@ def fig_annual_spread_rev12(
 
     ax.yaxis.set_tick_params(labelsize=11)
     ax.xaxis.set_tick_params(labelsize=11)
-    ax.set_title('Annual Future Spread over Greece [2081–2100, SSP5-8.5]', fontsize=15)
+    ax.set_title(f'Annual Future Spread over {country.capitalize()} [2081–2100, SSP5-8.5]', fontsize=15)
     ax.set_xlabel('Temperature Change (°C)', fontsize=13)
     ax.set_ylabel('Precipitation (mm/day)', fontsize=13)
 

@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from subselect.config import Config
-from subselect.viz import _data_adapters as adapters
+from subselect.viz import _country_bootstrap, _data_adapters as adapters
 from subselect.viz import country_profile, performance_figs, spread_figs
 
 
@@ -49,6 +49,12 @@ def _save(fig: plt.Figure, country: str, category: str, filename: str, dpi: int 
 
 def regenerate(country: str, *, include_seasonal_bias: bool = False) -> list[Path]:
     config = Config.from_env()
+    # Bootstrap any missing xlsx artefacts the figure adapters need (idempotent
+    # — skips files that already exist). This makes the entry-point country-
+    # agnostic: a fresh country only needs a `country_codes.json` entry and a
+    # GADM polygon, plus the cached CMIP6 NetCDFs already on disk.
+    _country_bootstrap.bootstrap_country_artefacts(country, config=config)
+
     written: list[Path] = []
 
     # Adapter pre-loads (shared inputs)
