@@ -37,17 +37,31 @@ import xarray as xr
 
 
 CATALOG_FILENAME = "catalog.json"
+GLOBAL_SCOPE = "_global"
 
 
 class Cache:
-    """Per-country artefact cache rooted at ``cache_root / country``."""
+    """Artefact cache rooted at ``cache_root / scope``.
 
-    def __init__(self, country: str, cache_root: Path):
-        self.country = country
-        self.root = Path(cache_root) / country
+    ``scope`` is either a country name (e.g. ``"greece"``) for per-country
+    caches or the literal :data:`GLOBAL_SCOPE` (``"_global"``) for the
+    country-independent cache shared across runs. Per-(model, var) historical
+    climatologies, σ_obs grids, GWL crossing years and similar artefacts live
+    in the global cache; country-mean reductions live in the per-country one.
+    """
+
+    def __init__(self, scope: str, cache_root: Path):
+        self.scope = scope
+        self.country = scope  # backwards-compatible alias for callers that named it
+        self.root = Path(cache_root) / scope
         self.root.mkdir(parents=True, exist_ok=True)
         self._catalog_path = self.root / CATALOG_FILENAME
         self._catalog = self._load_catalog()
+
+    @classmethod
+    def global_cache(cls, cache_root: Path) -> "Cache":
+        """Return the country-independent global-scope cache."""
+        return cls(GLOBAL_SCOPE, cache_root)
 
     # -- catalog --------------------------------------------------------
 
@@ -179,26 +193,29 @@ class Cache:
         if kind == "dataset":
             zarr_dir.mkdir(parents=True, exist_ok=True)
             path = zarr_dir / f"{key}.zarr"
-            shutil.rmtree(path, ignore_errors=True)
-            value.to_zarr(path, mode="w")
+            _purge_path(path)
+            _sanitize_attrs(value).to_zarr(path, mode="w-", consolidated=False)
             return path
 
         if kind == "dataarray":
             zarr_dir.mkdir(parents=True, exist_ok=True)
             path = zarr_dir / f"{key}.zarr"
-            shutil.rmtree(path, ignore_errors=True)
+            _purge_path(path)
             name = value.name or key
-            value.rename(name).to_dataset().to_zarr(path, mode="w")
+            ds = value.rename(name).to_dataset()
+            _sanitize_attrs(ds).to_zarr(path, mode="w-", consolidated=False)
             return path
 
         if kind == "dict_of_dataset":
             zarr_dir.mkdir(parents=True, exist_ok=True)
             sub = zarr_dir / key
-            shutil.rmtree(sub, ignore_errors=True)
+            _purge_path(sub)
             sub.mkdir(parents=True)
             for sub_key, ds in value.items():
                 _safe = sub_key.replace("/", "_")
-                ds.to_zarr(sub / f"{_safe}.zarr", mode="w")
+                _sanitize_attrs(ds).to_zarr(
+                    sub / f"{_safe}.zarr", mode="w-", consolidated=False,
+                )
             return sub
 
         if kind == "dataclass":
@@ -287,11 +304,83 @@ class Cache:
         raise ValueError(f"unsupported cache kind: {kind!r}")
 
 
+def _purge_path(path: Path) -> None:
+    """Delete a file or directory, including any macOS Apple Double sidecars
+    (``._foo`` extended-attribute files) that ``shutil.rmtree`` can race with
+    on volumes that synthesize them."""
+    if not path.exists():
+        # Apple Double sidecars can outlive their parent on these volumes;
+        # explicitly remove the sibling sidecar of `path` if any.
+        sidecar = path.parent / f"._{path.name}"
+        if sidecar.exists():
+            try:
+                sidecar.unlink()
+            except OSError:
+                pass
+        return
+    if path.is_dir():
+        # Walk + unlink Apple Double sidecars first so rmtree doesn't trip on
+        # them mid-walk.
+        for ad in path.rglob("._*"):
+            try:
+                ad.unlink()
+            except OSError:
+                pass
+        shutil.rmtree(path, ignore_errors=True)
+    else:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
 def _df_to_parquet(df: pd.DataFrame, path: Path) -> None:
     """Write a DataFrame to parquet (parquet requires string column names)."""
     out = df.copy()
     out.columns = [str(c) for c in out.columns]
     out.to_parquet(path)
+
+
+def _sanitize_attrs(ds_or_da):
+    """Strip / repair non-UTF-8 attribute values before zarr serialization.
+
+    CMIP6 NetCDFs occasionally carry attributes encoded in Latin-1 (e.g. a
+    bare ``°`` byte ``0xb0`` in a units string), which numcodecs' UTF-8
+    encoder rejects. Rather than dropping the field, we re-decode bytes via
+    Latin-1 then re-encode as UTF-8.
+    """
+    import xarray as xr
+
+    if isinstance(ds_or_da, xr.Dataset):
+        out = ds_or_da.copy()
+        out.attrs = _clean_attr_dict(out.attrs)
+        for var in list(out.variables):
+            out[var].attrs = _clean_attr_dict(out[var].attrs)
+        return out
+    out = ds_or_da.copy()
+    out.attrs = _clean_attr_dict(out.attrs)
+    return out
+
+
+def _clean_attr_dict(attrs: dict[str, Any]) -> dict[str, Any]:
+    return {k: _clean_attr_value(v) for k, v in attrs.items()}
+
+
+def _clean_attr_value(value: Any) -> Any:
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value.decode("latin-1")
+    if isinstance(value, str):
+        # Encode to bytes then decode strictly to UTF-8; if it fails, treat
+        # the original string as a Latin-1 byte sequence.
+        try:
+            value.encode("utf-8")
+            return value
+        except UnicodeEncodeError:
+            return value.encode("latin-1", errors="replace").decode("utf-8", errors="replace")
+    return value
 
 
 def _iter_parquets(directory: Path):

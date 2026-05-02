@@ -15,10 +15,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 from joblib import Parallel, delayed
 
+from subselect import compute_global as cg
 from subselect import io, profile_signals
 from subselect.cache import Cache
 from subselect.config import Config
@@ -38,39 +40,60 @@ DEFAULT_BACKEND = "loky"
 # Annual time series
 # ---------------------------------------------------------------------------
 
-def _annual_timeseries_one(
-    variable: str, model: str, scenario: str, country: str, config: Config,
+def _annual_timeseries_one_from_global(
+    variable: str, model: str, scenario: str, country: str,
+    cache_root: Path, config: Config,
 ) -> tuple[str, pd.Series] | None:
-    """Compute the annual country-mean time-series for one (variable, model,
-    scenario). Returns ``(column_name, series)`` or ``None`` when the source
-    NetCDF is missing for this combination."""
+    """Country-mean annual time-series for one (variable, model, scenario)
+    by cropping the cached global annual-mean field.
+
+    Falls back to a direct CMIP6 NetCDF read if the global cache lacks the
+    field (e.g. first-time use on a system without the global cache built).
+    """
     from subselect.geom import crop
     from subselect.performance import (
         _normalise_time_to_first_of_month, _spatial_weighted_mean,
     )
 
+    global_cache = Cache.global_cache(cache_root)
+    key = cg.annual_field_key(variable, model, scenario)
+
+    try:
+        fpath = io.cmip6_path(variable, scenario, model, config=config)
+    except FileNotFoundError:
+        return None
+    parts = fpath.stem.split("_")
+    variant = parts[2] if len(parts) >= 4 else "r1i1p1f1"
+    col_name = f"{variable}_{model}_{variant}_{scenario}_yr"
+
+    if global_cache.has(key):
+        annual = global_cache.load(key)
+        cropped = crop(annual, country, method="bbox", config=config).data
+        series = pd.Series(
+            {
+                int(y): _spatial_weighted_mean(cropped.sel(year=y))
+                for y in cropped.year.values
+            }
+        )
+        return col_name, series
+
+    # Cold-cache fallback: direct NetCDF path (used when global cache hasn't
+    # been built yet — e.g. the first cold-cache run before compute_global).
     try:
         ds = io.load_cmip6(variable, scenario, model, config=config)
     except FileNotFoundError:
         return None
     if "height" in ds.coords:
         ds = ds.drop_vars("height")
-    da = ds[variable]
-
-    fpath = io.cmip6_path(variable, scenario, model, config=config)
-    parts = fpath.stem.split("_")
-    variant = parts[2] if len(parts) >= 4 else "r1i1p1f1"
-
-    cropped = crop(da, country, method="bbox", config=config).data
-    cropped = _normalise_time_to_first_of_month(cropped)
-    annual = cropped.groupby("time.year").mean("time")
+    da = _normalise_time_to_first_of_month(ds[variable])
+    annual = da.groupby("time.year").mean("time")
+    cropped = crop(annual, country, method="bbox", config=config).data
     series = pd.Series(
         {
-            int(y): _spatial_weighted_mean(annual.sel(year=y))
-            for y in annual.year.values
+            int(y): _spatial_weighted_mean(cropped.sel(year=y))
+            for y in cropped.year.values
         }
     )
-    col_name = f"{variable}_{model}_{variant}_{scenario}_yr"
     ds.close()
     return col_name, series
 
@@ -81,13 +104,16 @@ def _build_annual_timeseries(
     """Annual country-mean time-series 1850–2100 across all SSPs and models.
 
     Columns: ``<variable>_<MODEL>_<variant>_<scenario>_yr``. Index: year (int).
-    The 35-models × 4-scenarios loop runs in parallel via joblib loky.
+    Reads from the cached global annual-mean fields when available; the
+    35-models × 4-scenarios loop runs in parallel via joblib loky.
     """
     models = io.load_models_list(config)
     jobs = [(model, scenario) for model in models for scenario in SCENARIOS]
     parallel = Parallel(n_jobs=n_jobs, backend=DEFAULT_BACKEND)
     results = parallel(
-        delayed(_annual_timeseries_one)(variable, m, s, country, config)
+        delayed(_annual_timeseries_one_from_global)(
+            variable, m, s, country, config.cache_root, config,
+        )
         for m, s in jobs
     )
     cols: dict[str, pd.Series] = {}
@@ -103,8 +129,7 @@ def _build_annual_timeseries(
 
 def annual_timeseries(country: str, config: Config, cache: Cache) -> dict[str, pd.DataFrame]:
     """Build (or load from cache) the annual country-mean time-series for the
-    three time-series variables (``tas``, ``pr``, ``psl``).
-    """
+    three time-series variables (``tas``, ``pr``, ``psl``)."""
     out: dict[str, pd.DataFrame] = {}
     for variable in TIMESERIES_VARIABLES:
         key = f"annual_timeseries__{variable}"
@@ -227,48 +252,64 @@ def _fused_per_model(
     *,
     model: str,
     variable: str,
-    scenario: str,
     country: str,
     crop_method: str,
+    cache_root: Path,
     config: Config,
     obs_std_per_period: dict[str, float],
     bias_periods: list[str] | None,
 ) -> dict | None:
-    """Single-pass per-(model, variable) worker.
+    """Single-pass per-(model, variable) worker, consuming the global cache.
 
-    Loads model + observation climatologies *once* and computes every
-    downstream artefact that depends on them — metric scalars, monthly
-    spatial means, per-period bias fields. Returning all three from one
-    NetCDF read pair is what brings the cold-cache pipeline runtime under
-    the target.
+    Loads cached model + obs climatologies + sigma_ref maps from
+    ``cache/_global/`` and computes country-mean metric scalars, monthly
+    spatial means, and per-period bias fields. No NetCDF reads here.
     """
+    from subselect.geom import crop as crop_fn
     from subselect.performance import (
-        PERIODS, SEASON_MONTHS,
-        _model_obs_climatologies, _per_variable_period_row,
-        _select_months, _spatial_weighted_mean,
+        EPS_DIVISION, PERIODS, SEASON_MONTHS,
+        _pixel_metrics_for_period, _select_months, _spatial_weighted_mean,
     )
 
-    try:
-        obs_clim_full, mod_clim_full, obs_full_ts = _model_obs_climatologies(
-            model=model, variable=variable, scenario=scenario,
-            country=country, crop_method=crop_method, config=config,
-        )
-    except FileNotFoundError:
+    global_cache = Cache.global_cache(cache_root)
+    hist_key = cg.hist_clim_key(variable, model)
+    obs_key = cg.obs_clim_key(variable, model)
+    sigma_key = cg.sigma_ref_key(variable, model)
+    if not (
+        global_cache.has(hist_key)
+        and global_cache.has(obs_key)
+        and global_cache.has(sigma_key)
+    ):
         return None
+
+    mod_clim_global = global_cache.load(hist_key)
+    obs_clim_global = global_cache.load(obs_key)
+    sigma_ref_global = global_cache.load(sigma_key)
+
+    mod_clim_full = crop_fn(mod_clim_global, country, method=crop_method, config=config).data
+    obs_clim_full = crop_fn(obs_clim_global, country, method=crop_method, config=config).data
+    sigma_ref_full = crop_fn(sigma_ref_global, country, method=crop_method, config=config).data
 
     metric_scalars: dict[str, float] = {}
     for period in PERIODS:
-        metric_scalars.update(_per_variable_period_row(
-            obs_clim_full=obs_clim_full,
-            mod_clim_full=mod_clim_full,
-            obs_full_timeseries=obs_full_ts,
-            obs_std_per_period=obs_std_per_period,
-            period=period,
-        ))
+        months = SEASON_MONTHS[period]
+        obs_clim_p = _select_months(obs_clim_full, months)
+        mod_clim_p = _select_months(mod_clim_full, months)
+        sigma_map_p = sigma_ref_full.sel(period=period)
+        pixel_metrics = _pixel_metrics_for_period(obs_clim_p, mod_clim_p, sigma_map_p)
+        for name, da in pixel_metrics.items():
+            spatial_input = abs(da) if name == "bias" else da
+            metric_scalars[f"{period}_{name}"] = _spatial_weighted_mean(spatial_input)
+        obs_std = obs_std_per_period[period]
+        a = metric_scalars[f"{period}_std_dev"] / max(obs_std, EPS_DIVISION)
+        a = max(a, EPS_DIVISION)
+        r = max(min(metric_scalars[f"{period}_corr"], 1.0), -1.0)
+        metric_scalars[f"{period}_tss"] = 2.0 * (1.0 + r) / ((a + 1.0 / a) ** 2)
+        metric_scalars[f"{period}_tss_hirota"] = ((1.0 + r) ** 4) / (4.0 * (a + 1.0 / a) ** 2)
 
-    months = list(range(1, 13))
-    cmip_monthly = [_spatial_weighted_mean(mod_clim_full.sel(month=m)) for m in months]
-    obs_monthly = [_spatial_weighted_mean(obs_clim_full.sel(month=m)) for m in months]
+    months_idx = list(range(1, 13))
+    cmip_monthly = [_spatial_weighted_mean(mod_clim_full.sel(month=m)) for m in months_idx]
+    obs_monthly = [_spatial_weighted_mean(obs_clim_full.sel(month=m)) for m in months_idx]
 
     bias_per_period: dict[str, xr.DataArray] | None = None
     if bias_periods is not None:
@@ -305,19 +346,20 @@ def fused_performance_pass(
     dict[str, dict[str, xr.Dataset]],
     dict[str, dict[str, dict[str, xr.DataArray]]],
 ]:
-    """Run every per-model climatology load exactly once across the
-    performance, monthly-means, and bias-map artefacts.
+    """Run every per-model country-mean derivation against the cached global
+    climatologies. No NetCDF reads here — all input fields come from
+    ``cache/_global/``.
 
     Returns ``(performance_metrics, monthly_means, observed_std_dev,
     observed_maps, bias_maps)``.
     """
+    from subselect.geom import crop as crop_fn
     from subselect.performance import (
         PER_PERIOD_METRIC_COLUMNS, PERIODS, SEASON_MONTHS,
-        _compute_obs_std_per_period, _monthly_climatology,
-        _normalise_time_to_first_of_month, _open_and_crop,
-        _select_months, _slice_eval_window,
+        _select_months, _spatial_weighted_mean,
     )
 
+    global_cache = Cache.global_cache(config.cache_root)
     months = list(range(1, 13))
     metric_columns = [
         f"{period}_{m}"
@@ -341,7 +383,9 @@ def fused_performance_pass(
     models = io.load_models_list(config)
 
     for variable in ALL_VARIABLES:
-        deps = _cmip6_inputs(variable, config) + _reference_inputs(variable, config)
+        deps = [
+            global_cache.root / "catalog.json",
+        ]
 
         perf_key = f"performance_metrics__{variable}"
         cmip_key = f"monthly_means__{variable}__cmip6"
@@ -352,28 +396,34 @@ def fused_performance_pass(
             and cache.is_fresh(obs_key, deps)
         )
 
-        # σ_obs scalars from native obs — needed even on a tabular-cache hit
-        # because :func:`observed_std_dev` is a top-level state field.
-        obs_std_per_period = _compute_obs_std_per_period(
-            variable, country, crop_method, config,
-        )
-        obs_std_columns[variable] = [obs_std_per_period[p] for p in PERIODS]
+        # σ_obs scalars: cropped from cached native-resolution climatology +
+        # std-over-months. The σ_obs scalar that feeds the TSS denominator is
+        # the *climatology* std (variability across the 12 monthly means for a
+        # given period), not the interannual std. Computing it from the cached
+        # climatology preserves the legacy convention.
+        nso_key = cg.native_sigma_obs_key(variable)
+        obs_std_per_period: dict[str, float] = {}
+        if global_cache.has(nso_key):
+            from subselect.performance import _scalar_obs_std
 
-        # Observed-maps top panel (one native-obs read per variable)
-        if include_bias_maps:
-            try:
-                obs_full = io.load_native_w5e5(variable, config=config)[variable]
-                obs_full = _open_and_crop(obs_full, country, crop_method, config)
-                obs_full = _normalise_time_to_first_of_month(obs_full)
-                obs_full = _slice_eval_window(obs_full, config.eval_window)
-                obs_clim_native = _monthly_climatology(obs_full)
+            nso = global_cache.load(nso_key)
+            clim_global = nso["clim"]
+            clim_country = crop_fn(
+                clim_global, country, method=crop_method, config=config,
+            ).data
+            for period in PERIODS:
+                obs_std_per_period[period] = _scalar_obs_std(
+                    clim_country, SEASON_MONTHS[period],
+                )
+            obs_std_columns[variable] = [obs_std_per_period[p] for p in PERIODS]
+
+            # Observed-maps top panel: cropped from cached native climatology
+            if include_bias_maps:
                 for period in bias_periods:
-                    sel = _select_months(obs_clim_native, SEASON_MONTHS[period])
+                    sel = _select_months(clim_country, SEASON_MONTHS[period])
                     obs_maps[period][variable] = (
                         sel.mean(dim="month").to_dataset(name=variable)
                     )
-            except FileNotFoundError:
-                pass
 
         # Skip the per-model pass when every tabular artefact is cached and the
         # caller didn't ask for bias maps (which are not cached on disk).
@@ -384,8 +434,9 @@ def fused_performance_pass(
 
         results = parallel(
             delayed(_fused_per_model)(
-                model=m, variable=variable, scenario=scenario,
-                country=country, crop_method=crop_method, config=config,
+                model=m, variable=variable,
+                country=country, crop_method=crop_method,
+                cache_root=config.cache_root, config=config,
                 obs_std_per_period=obs_std_per_period,
                 bias_periods=bias_periods if include_bias_maps else None,
             )
@@ -586,57 +637,84 @@ def monthly_means(
 # Spread pipeline (M8)
 # ---------------------------------------------------------------------------
 
+def _period_means_from_cached_clim(
+    clim: xr.DataArray, country: str, config: Config, *, crop_method: str = "bbox",
+    box_offset: float = 1.5,
+) -> dict[str, float]:
+    """cos(lat)-weighted spatial mean of a cached climatology, then per-period
+    reduction. Used by the spread pipeline against pre-cropped climatologies
+    pulled from the global cache."""
+    from subselect.geom import crop as crop_fn
+    from subselect.performance import PERIODS, SEASON_MONTHS, _spatial_weighted_mean
+
+    cropped = crop_fn(
+        clim, country, method=crop_method, box_offset=box_offset, config=config,
+    ).data
+    monthly_means = {
+        int(m): _spatial_weighted_mean(cropped.sel(month=m))
+        for m in cropped.month.values
+    }
+    out: dict[str, float] = {}
+    out["annual"] = float(np.mean([monthly_means[m] for m in range(1, 13)]))
+    for period in ("DJF", "MAM", "JJA", "SON"):
+        out[period] = float(
+            np.mean([monthly_means[m] for m in SEASON_MONTHS[period]])
+        )
+    return out
+
+
 def spread(
     country: str, config: Config, cache: Cache,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    from subselect.performance import PERIODS
-    from subselect.spread import (
-        SPREAD_BOX_OFFSET, SPREAD_VARIABLES,
-        _load_and_prepare, _period_means_for_window, compute_change_signals,
-    )
+    """End-of-century change signals + long-term + pre-industrial spread tables.
 
-    deps = sum((_cmip6_inputs(v, config) for v in SPREAD_VARIABLES), [])
+    Reads from the cached global EoC and PI climatologies (zarr per (variable,
+    model[, scenario])). No NetCDF reads here.
+    """
+    from subselect.performance import PERIODS
+    from subselect.spread import SPREAD_VARIABLES, SPREAD_BOX_OFFSET
+
+    global_cache = Cache.global_cache(config.cache_root)
+    deps = [global_cache.root / "catalog.json"]
 
     key_change = "change_signals"
-    if cache.is_fresh(key_change, deps):
-        change_df = cache.load(key_change)
-    else:
-        change_df = compute_change_signals(country, scenario="ssp585", config=config)
-        cache.save(key_change, change_df, deps=deps)
-
     key_long = "long_term_spread"
     key_pi = "pre_industrial_spread"
-    if cache.is_fresh(key_long, deps) and cache.is_fresh(key_pi, deps):
-        return change_df, cache.load(key_long), cache.load(key_pi)
+    if (
+        cache.is_fresh(key_change, deps)
+        and cache.is_fresh(key_long, deps)
+        and cache.is_fresh(key_pi, deps)
+    ):
+        return cache.load(key_change), cache.load(key_long), cache.load(key_pi)
 
     models = io.load_models_list(config)
     columns = [f"{v}_{p}" for v in SPREAD_VARIABLES for p in PERIODS]
     long_df = pd.DataFrame(index=models, columns=columns, dtype=float)
     pi_df = pd.DataFrame(index=models, columns=columns, dtype=float)
+    change_df = pd.DataFrame(index=models, columns=columns, dtype=float)
 
-    def _spread_one(variable: str, model: str):
-        da = _load_and_prepare(
-            model=model, variable=variable, scenario="ssp585",
-            country=country, crop_method="bbox",
-            box_offset=SPREAD_BOX_OFFSET, config=config,
-        )
-        if da is None:
-            return variable, model, None, None
-        lt = _period_means_for_window(da, config.future_window)
-        pi = _period_means_for_window(da, config.pre_industrial)
-        return variable, model, lt, pi
-
-    parallel = Parallel(n_jobs=DEFAULT_N_JOBS, backend=DEFAULT_BACKEND)
-    results = parallel(
-        delayed(_spread_one)(v, m) for v in SPREAD_VARIABLES for m in models
-    )
-    for variable, model, lt, pi in results:
-        if lt is not None:
+    for variable in SPREAD_VARIABLES:
+        for model in models:
+            eoc_key = cg.eoc_clim_key(variable, model, "ssp585")
+            pi_key = cg.pi_clim_key(variable, model)
+            if not global_cache.has(eoc_key):
+                continue
+            eoc_clim = global_cache.load(eoc_key)
+            lt = _period_means_from_cached_clim(
+                eoc_clim, country, config, box_offset=SPREAD_BOX_OFFSET,
+            )
             for p in PERIODS:
                 long_df.loc[model, f"{variable}_{p}"] = lt[p]
-        if pi is not None:
-            for p in PERIODS:
-                pi_df.loc[model, f"{variable}_{p}"] = pi[p]
+            if global_cache.has(pi_key):
+                pi_clim = global_cache.load(pi_key)
+                pi = _period_means_from_cached_clim(
+                    pi_clim, country, config, box_offset=SPREAD_BOX_OFFSET,
+                )
+                for p in PERIODS:
+                    pi_df.loc[model, f"{variable}_{p}"] = pi[p]
+                    change_df.loc[model, f"{variable}_{p}"] = lt[p] - pi[p]
+
+    cache.save(key_change, change_df, deps=deps)
     cache.save(key_long, long_df, deps=deps)
     cache.save(key_pi, pi_df, deps=deps)
     return change_df, long_df, pi_df
@@ -767,17 +845,24 @@ def global_comparison(config: Config) -> dict[str, dict[str, pd.DataFrame] | pd.
 # Orchestrator
 # ---------------------------------------------------------------------------
 
+_FORCE_LITERALS = ("country", "global", "all")
+
+
 def compute(
     country: str,
     *,
     scenarios: tuple[str, ...] = SCENARIOS,
     only: Iterable[str] | None = None,
-    force: bool = False,
+    force: bool | str = False,
     config: Config | None = None,
     include_bias_maps: bool = True,
     include_seasonal_bias: bool = False,
 ) -> SubselectState:
     """Run every L1 derivation for *country* and return a populated state.
+
+    Populates the global cache (`cache/_global/`) on first call, then
+    consumes it for every per-country derivation. Subsequent country runs
+    skip the global compute entirely.
 
     Parameters
     ----------
@@ -792,7 +877,10 @@ def compute(
         (``"performance"``, ``"spread"``, ``"profile"``, ``"bias"``). Any not
         listed are skipped (and the corresponding state fields are empty).
     force
-        If True, ignore cache and recompute every artefact.
+        If ``True`` or ``"all"``, ignore both caches and recompute everything.
+        ``"country"`` rebuilds only the per-country cache (global stays).
+        ``"global"`` rebuilds only the global cache (per-country stays).
+        ``False`` (default) consults both caches normally.
     config
         Optional :class:`Config` override (default: ``Config.from_env()``).
     include_bias_maps
@@ -803,8 +891,12 @@ def compute(
     """
     config = config or Config.from_env()
     cache = Cache(country, config.cache_root)
-    if force:
+
+    force_global = force is True or force == "all" or force == "global"
+    force_country = force is True or force == "all" or force == "country"
+    if force_country:
         cache.clear()
+    cg.compute_global(config=config, force=force_global)
 
     only_set = set(only) if only else None
 

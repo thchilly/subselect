@@ -513,6 +513,100 @@ per-country JSON catalog. The simpler scope (one country, one cache, one
 catalog) made cross-country indexing unnecessary; SQLite added I/O and
 schema overhead without buying anything at the relevant access pattern.
 
+\subsection*{Cache scope: global vs per-country}
+
+\paragraph{Question.} Where do per-(model, variable) climatology fields,
+σ\textsubscript{obs} grids, and per-(model, variable, scenario)
+annual-mean fields live?
+
+\paragraph{Choice.} Country-independent artefacts move to
+\texttt{cache/\_global/}; country-specific reductions stay under
+\texttt{cache/}$\langle c \rangle$\texttt{/}. The \emph{compute-once-globally,
+reuse-per-country} convention.
+
+\paragraph{Rationale.} A per-(model, variable) monthly climatology over
+the 1995--2014 evaluation window depends only on (model, variable), not
+on the country chosen for analysis. The same is true of the corresponding
+upscaled-observation climatology, the per-period interannual σ map, the
+end-of-century and pre-industrial monthly climatologies, and the
+per-(model, variable, scenario) annual-mean field 1850--2100. Country
+analysis cropping is a slice of the cached field, not a recomputation of
+it. Caching at country scope would re-pay the per-model climatology and
+annual-mean cost on every new country; caching at global scope pays it
+once. After the first country run, every subsequent country reuses the
+cached fields.
+
+\paragraph{Layout.}
+\begin{align*}
+  \text{global} \quad &\text{cache/\_global/}\{ \text{catalog.json},
+  \text{zarr/}\langle a \rangle\texttt{.zarr}, \text{parquet/}\langle k \rangle\texttt{.parquet} \} \\
+  \text{per-country} \quad &\text{cache/}\langle c \rangle / \{ \text{catalog.json},
+  \text{parquet/}, \text{zarr/} \}
+\end{align*}
+
+\paragraph{Global artefacts.}
+\begin{itemize}
+\item Per-(model, variable) historical climatology
+  (\texttt{historical\_clim\_\_<var>\_\_<model>.zarr}); 12 months on the
+  model's native grid over 1995--2014.
+\item Per-(model, variable) upscaled-observation climatology
+  (\texttt{obs\_clim\_\_<var>\_\_<model>.zarr}).
+\item Per-(model, variable, period) interannual σ map
+  (\texttt{sigma\_ref\_\_<var>\_\_<model>.zarr}).
+\item Per-(model, variable, scenario) end-of-century climatology
+  (\texttt{eoc\_clim\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 12 months over 2081--2100.
+\item Per-(model, variable) pre-industrial climatology
+  (\texttt{pi\_clim\_\_<var>\_\_<model>.zarr}); 12 months over 1850--1899.
+\item Per-(model, variable, scenario) annual-mean field
+  (\texttt{annual\_field\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 251 years
+  on the model's native grid.
+\item Native 0.5° W5E5 climatology + per-period σ field per variable
+  (\texttt{native\_sigma\_obs\_\_<var>.zarr}); feeds the σ\textsubscript{obs}
+  scalar in the TSS denominator.
+\end{itemize}
+
+\paragraph{Per-country artefacts} are country-mean reductions of the
+above: HPS / TSS / BVS metric tables, country annual time-series,
+change\_signals, country σ\textsubscript{obs} scalars per period, country
+profile signals, country-mean monthly climatologies, country-mean bias
+fields, and the warming-level / future-anomaly tables.
+
+\paragraph{Implementation.} \texttt{subselect.compute\_global.compute\_global()}
+populates the global cache; \texttt{subselect.compute.compute(country)}
+auto-builds the global cache on first call and consumes it thereafter.
+The \texttt{Cache} class' \texttt{global\_cache} classmethod wraps the
+global scope. The CLI exposes \texttt{python -m subselect --global-only}
+for explicit warmup and \texttt{--force \{all,country,global\}} for
+scope-targeted recompute.
+
+\paragraph{Numerical artefact of the cache architecture.} The
+spread-pipeline outputs (\texttt{change\_signals},
+\texttt{long\_term\_spread}, \texttt{pre\_industrial\_spread}) drift
+by $\sim$\,$10^{-5}$ absolute / $10^{-7}$ relative compared to the
+\texttt{l1l2-restructured} tag. The drift is a float-summation-order
+artefact of moving from \emph{load $\rightarrow$ crop $\rightarrow$
+time-slice $\rightarrow$ climatology $\rightarrow$ spatial-mean} (legacy)
+to \emph{climatology (global) $\rightarrow$ crop $\rightarrow$ spatial-mean}
+(post-3.6). The two operation orders are mathematically equivalent
+on a continuous-valued field; on float32 reductions they produce
+results that match to six significant digits, six orders of magnitude
+below any climate-relevant threshold. This is a numerical artefact of
+the cache architecture, not a methodology change. The new values are
+the canonical regression-test contract from the
+\texttt{cache-globalized} tag onward.
+
+\paragraph{Performance footprint.} Cold global compute: $\sim$5–7 min
+(one-time per machine; 35 models $\times$ 4 vars $\times$ 4 SSPs
+NetCDF reads producing 1380 zarr entries totalling $\sim$3 GB). Warm
+global + cold country: $\sim$1:45 (Greece), 1:42 (Sweden), 1:56
+(Belgium). Warm cache (every artefact cached, 28 figures rendered):
+$\sim$50 s, dominated by cartopy bias-map rendering. Per-country
+bottlenecks for further optimization (batched zarr reads, parallel
+figure render, bias-map persistence) are deferred to a post-v0.1.0
+perf sprint.
+
+\paragraph{Decided.} 2026-05-02 with the \texttt{cache-globalized} tag.
+
 % =============================================================================
 \bibliographystyle{plainnat}
 \bibliography{references}

@@ -33,7 +33,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="python -m subselect",
         description="Compute + render the full country pipeline for one country.",
     )
-    parser.add_argument("country", help="Country name (e.g. greece, sweden, portugal).")
+    parser.add_argument(
+        "country", nargs="?", default=None,
+        help="Country name (e.g. greece, sweden, portugal). Omit with --global-only.",
+    )
+    parser.add_argument(
+        "--global-only", action="store_true",
+        help=(
+            "Populate the country-independent global cache (cache/_global/) "
+            "without running for any specific country. Useful for cluster "
+            "warmup or web-app deployment prep."
+        ),
+    )
     parser.add_argument(
         "--no-figures", action="store_true",
         help="Skip rendering; only fill the cache.",
@@ -51,8 +62,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--force", action="store_true",
-        help="Ignore cache; recompute every artefact.",
+        "--force", default=None, choices=["all", "country", "global"],
+        help=(
+            "Ignore cache and recompute. 'all' rebuilds both caches, "
+            "'country' rebuilds only cache/<country>/, "
+            "'global' rebuilds only cache/_global/."
+        ),
     )
     parser.add_argument(
         "--output-dir", default=None,
@@ -82,8 +97,21 @@ def main(argv: list[str] | None = None) -> int:
 
     only = tuple(s.strip() for s in args.only.split(",")) if args.only else None
     output_dir = Path(args.output_dir) if args.output_dir else None
+    force_arg: bool | str = args.force if args.force else False
 
     t0 = time.time()
+
+    if args.global_only:
+        from subselect.compute_global import compute_global
+        print("[subselect] global-only run")
+        compute_global(config=config, force=force_arg in ("all", "global"))
+        print(f"[subselect] global cache populated in {time.time() - t0:.1f} s")
+        return 0
+
+    if not args.country:
+        print("[subselect] error: country argument required (or use --global-only)")
+        return 2
+
     print(f"[subselect] country={args.country}")
 
     if args.no_recompute:
@@ -91,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         state = compute(
             args.country,
-            only=only, force=args.force, config=config,
+            only=only, force=force_arg, config=config,
             include_bias_maps=not args.no_bias_maps,
             include_seasonal_bias=args.include_seasonal_bias,
         )

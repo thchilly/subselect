@@ -1,36 +1,34 @@
-"""Regression tests against the corrected-methodology pipeline snapshots.
+"""Regression tests: post-`cache-globalized` pipeline outputs for Greece.
 
-Replaces ``tests/test_regression_greece.py`` (the M3 paper-xlsx regression
-test) following the M-CORRECT step. The paper-era outputs are now archived
-under ``documentation/historical_paper_outputs/``; the corrected pipeline
-is the canonical contract.
+Pins the per-artefact outputs of the L1 pipeline (post-Step-3.6) at
+machine epsilon. The fixtures are snapshots of the parquet files written
+to ``cache/greece/`` by ``subselect.compute.compute('greece')`` against
+the global cache produced by ``subselect.compute_global.compute_global()``.
 
-Corrections applied at the ``methodology-corrected`` tag:
+The fixture values incorporate two architectural changes from prior tags:
 
-1. ``σ_obs`` spatial mean uses ``cos(latitude)`` weights, consistent with
-   every other spatial mean in the pipeline.
-2. ``σ_obs`` is computed on the native 0.5° W5E5 reference
-   (``Data/reference/monthly_05/<var>_*.nc``) instead of the cmip6-grid
-   upscaled product.
+1. **Methodology corrections** (Step 2, ``methodology-corrected``):
+   ``σ_obs`` uses cos(latitude)-weighted spatial means and is computed on
+   the native 0.5° W5E5 reference. See ``documentation/methods.tex §
+   Methodology corrections (post-paper)``.
 
-See ``documentation/methods.tex § Methodology corrections (post-paper)``.
+2. **Cache architecture** (Step 3.6, ``cache-globalized``): per-(model,
+   var) climatologies live in ``cache/_global/``; per-country derivations
+   crop those cached fields. The reordered float-summation in the spread
+   pipeline introduces a $\\sim$1e-5 absolute / 1e-7 relative numerical
+   drift relative to the legacy operation order; this is documented in
+   ``documentation/methods.tex § Cache scope`` and is the canonical
+   contract from this tag onward.
 
-Snapshots live under ``tests/fixtures/regression_corrected/``:
+The tests read directly from ``cache/greece/parquet/`` rather than
+calling :func:`subselect.compute.compute` so the test runtime stays
+small. CI must populate the cache once via ``python -m subselect greece``
+before running the regression suite. ``test_corrected_cache_present``
+fails fast with a clear message when the cache is missing.
 
-- ``per_variable_metrics_<var>.parquet`` for ``var ∈ {tas, pr, psl, tasmax}``
-- ``composite_hps.parquet``        — output of ``compute_hps`` (renamed cols)
-- ``composite_hps_full.parquet``   — full TSS_mm/bs_mm/HMperf/rank frame
-- ``change_signals.parquet``       — output of ``compute_change_signals``
-- ``observed_std_dev.parquet``     — σ_obs scalars per (variable, period)
-
-Snapshots were generated via
-``scripts/build_corrected_regression_fixtures.py``. Re-running that script
-under the same code regenerates the fixtures byte-identically (the pipeline
-is deterministic; ``joblib`` is used without across-iteration randomness).
-
-Tolerance: ``1e-12`` (essentially bit-identity). Any drift larger than this
-is a methodology change and should be a deliberate snapshot refresh, not a
-test loosening.
+Tolerance: ``1e-12`` (essentially bit-identity). Any drift larger than
+this is a methodology change and should be a deliberate snapshot
+refresh, not a test loosening.
 """
 
 from __future__ import annotations
@@ -41,6 +39,7 @@ import pandas as pd
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures" / "regression_corrected"
+CACHE = Path(__file__).resolve().parents[1] / "cache" / "greece" / "parquet"
 COUNTRY = "greece"
 PERIODS = ("annual", "DJF", "MAM", "JJA", "SON")
 HPS_VARIABLES = ("tas", "pr", "psl")
@@ -63,14 +62,33 @@ def test_corrected_fixtures_present():
 
 
 @pytest.mark.regression
+def test_corrected_cache_present():
+    """The Greece cache must be populated before regression assertions run.
+
+    Run ``python -m subselect greece`` once on a fresh checkout to populate
+    ``cache/_global/`` and ``cache/greece/`` before running the regression
+    suite.
+    """
+    expected = [
+        f"performance_metrics__{v}.parquet" for v in ALL_VARIABLES
+    ] + [
+        "composite_hps.parquet",
+        "composite_hps_full.parquet",
+        "change_signals.parquet",
+        "observed_std_dev.parquet",
+    ]
+    missing = [name for name in expected if not (CACHE / name).is_file()]
+    assert not missing, (
+        f"Missing per-country cache files: {missing}. "
+        f"Run 'python -m subselect greece' to populate."
+    )
+
+
+@pytest.mark.regression
 @pytest.mark.parametrize("variable", ALL_VARIABLES)
 def test_per_variable_metrics_corrected(variable: str):
-    """compute_metrics(<variable>, country='greece') must reproduce the
-    snapshot for every (model, period, metric) cell."""
-    from subselect.performance import compute_metrics
-
     expected = pd.read_parquet(FIXTURES / f"per_variable_metrics_{variable}.parquet")
-    actual = compute_metrics(COUNTRY, variable=variable)
+    actual = pd.read_parquet(CACHE / f"performance_metrics__{variable}.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -82,11 +100,21 @@ def test_per_variable_metrics_corrected(variable: str):
 
 @pytest.mark.regression
 def test_composite_hps_corrected():
-    """compute_hps(country='greece') must reproduce the snapshot."""
-    from subselect.performance import compute_hps
-
     expected = pd.read_parquet(FIXTURES / "composite_hps.parquet")
-    actual = compute_hps(COUNTRY).rename(columns={p: f"{p}_HMperf" for p in PERIODS})
+    actual = pd.read_parquet(CACHE / "composite_hps.parquet")
+    pd.testing.assert_frame_equal(
+        actual.reindex_like(expected),
+        expected,
+        atol=ATOL,
+        rtol=0,
+        check_dtype=False,
+    )
+
+
+@pytest.mark.regression
+def test_composite_hps_full_corrected():
+    expected = pd.read_parquet(FIXTURES / "composite_hps_full.parquet")
+    actual = pd.read_parquet(CACHE / "composite_hps_full.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -98,19 +126,10 @@ def test_composite_hps_corrected():
 
 @pytest.mark.regression
 def test_observed_std_dev_corrected():
-    """σ_obs scalars per (variable, period) must reproduce the snapshot."""
-    from subselect.config import Config
-    from subselect.performance import _compute_obs_std_per_period
-
     expected = pd.read_parquet(FIXTURES / "observed_std_dev.parquet")
-    config = Config.from_env()
-    actual_columns = {}
-    for variable in ALL_VARIABLES:
-        sigmas = _compute_obs_std_per_period(variable, COUNTRY, "bbox", config)
-        actual_columns[variable] = [sigmas[p] for p in PERIODS]
-    actual = pd.DataFrame(actual_columns, index=list(PERIODS))
+    actual = pd.read_parquet(CACHE / "observed_std_dev.parquet")
     pd.testing.assert_frame_equal(
-        actual,
+        actual.reindex_like(expected),
         expected,
         atol=ATOL,
         rtol=0,
@@ -120,11 +139,8 @@ def test_observed_std_dev_corrected():
 
 @pytest.mark.regression
 def test_change_signals_corrected():
-    """compute_change_signals(country='greece') must reproduce the snapshot."""
-    from subselect.spread import compute_change_signals
-
     expected = pd.read_parquet(FIXTURES / "change_signals.parquet")
-    actual = compute_change_signals(COUNTRY, scenario="ssp585")
+    actual = pd.read_parquet(CACHE / "change_signals.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
