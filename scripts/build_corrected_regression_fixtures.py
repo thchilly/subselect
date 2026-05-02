@@ -2,17 +2,9 @@
 
 Runs ``subselect.performance.compute_metrics`` (all 4 vars) +
 ``compute_hps`` + ``subselect.spread.compute_change_signals`` for Greece
-under the M-CORRECT methodology (cos-weighted means + native 0.5° σ_obs)
-and writes:
-
-1. ``tests/fixtures/regression_corrected/`` — parquet snapshots that the new
-   regression test pins against. One parquet per output table.
-2. Refreshed ``results/greece/assess_*.xlsx`` files used by the figure
-   adapters in ``subselect.viz._data_adapters`` so the M9 entry-point
-   picks up the corrected numbers.
-
-Run once on the M-CORRECT step. The regression-test fixtures are then the
-canonical contract going forward (test asserts bit-identity vs these files).
+under the corrected methodology (cos-weighted means + native 0.5° σ_obs)
+and writes ``tests/fixtures/regression_corrected/`` — parquet snapshots
+that the regression test pins against.
 """
 
 from __future__ import annotations

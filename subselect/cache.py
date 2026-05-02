@@ -1,577 +1,337 @@
-"""Cache layer — parquet + zarr + sqlite catalog.
+"""Per-country, per-artefact cache for the L1 pipeline.
 
-Three layers, each with one responsibility, per ``docs/refactor.md`` §
-Caching strategy:
+Each artefact (DataFrame, dict-of-DataFrame, xarray Dataset / DataArray) lives
+in its own file under ``cache/<country>/``. A small JSON catalog
+(``cache/<country>/catalog.json``) records what is cached and the maximum
+input-file mtime at write time, so a stale upstream file invalidates only the
+artefacts that consumed it.
 
-1. **Parquet** for tabular metric tables. Three path conventions:
+Layout::
 
-   - per-country, per-(scenario, season):
-     ``cache/parquet/<country>/<scenario>/<season>/<kind>__<crop_method>.parquet``
-     (HPS, BVS, change-spread tables; the M7/M8 hot path).
-   - per-country, multi-scenario time-series (M8 country-profile):
-     ``cache/parquet/<country>/timeseries/<variable>__<crop_method>.parquet``
-   - **global** (no country scope):
-     ``cache/parquet/_global/<kind>.parquet`` — first user is M8's
-     ``gwl_crossing_years.parquet``.
+    cache/<country>/
+        catalog.json
+        parquet/
+            <artefact_key>.parquet
+            <artefact_key>/<sub_key>.parquet      # for dict[str, DataFrame]
+            <artefact_key>__scalars.json          # for ProfileSignals scalars
+        zarr/
+            <artefact_key>.zarr
+            <artefact_key>/<sub_key>.zarr         # for dict-of-arrays
 
-2. **Zarr** for fields and matrices:
-   ``cache/zarr/<country>/<scenario>/<artefact>__<crop_method>.zarr``.
-   ``zarr<3`` is pinned in ``environment.yml`` and ``pyproject.toml`` so the
-   directory-store format stays stable across the refactor.
-
-3. **SQLite catalog** at ``cache/catalog.sqlite``: one row per artefact with
-   ``country, scenario, season, kind, crop_method, code_version, config_hash,
-   path, format, created_at``. Catalog rows for global / time-series
-   artefacts use the sentinel values ``_global`` (country) and ``n/a``
-   (scenario / season / crop_method) so the natural-key ``UNIQUE`` constraint
-   stays enforceable without nullable columns.
-
-The catalog is an index, not the source of truth — the underlying parquet /
-zarr files are. Throw the catalog away at any time and rebuild via
-``Catalog.rescan(...)``; that helper is Phase 1+ scope and not implemented
-here.
+The cache is a pure I/O layer: it does not know what an artefact *is*, only
+how to round-trip it. The :class:`Cache` API exposes ``has``, ``is_fresh``,
+``save``, ``load``, ``invalidate``, ``clear``.
 """
 
 from __future__ import annotations
 
-import contextlib
+import json
 import shutil
-import sqlite3
-from collections.abc import Iterator
-from dataclasses import dataclass
+import time
+from dataclasses import asdict, fields, is_dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Iterable
 
 import pandas as pd
 import xarray as xr
 
-from subselect.config import Config
 
-GLOBAL_COUNTRY = "_global"
-NOT_APPLICABLE = "n/a"
-TIMESERIES_SEASON = "timeseries"
-
-ArtefactFormat = Literal["parquet", "zarr"]
-CATALOG_FILENAME = "catalog.sqlite"
+CATALOG_FILENAME = "catalog.json"
 
 
-CATALOG_SCHEMA = """
-CREATE TABLE IF NOT EXISTS artefacts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    country         TEXT NOT NULL,
-    scenario        TEXT NOT NULL,
-    season          TEXT NOT NULL,
-    kind            TEXT NOT NULL,
-    crop_method     TEXT NOT NULL,
-    code_version    TEXT NOT NULL,
-    config_hash     TEXT NOT NULL,
-    path            TEXT NOT NULL,
-    format          TEXT NOT NULL,
-    created_at      TIMESTAMP NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    UNIQUE (country, scenario, season, kind, crop_method, config_hash)
-);
-CREATE INDEX IF NOT EXISTS idx_artefacts_country ON artefacts (country);
-CREATE INDEX IF NOT EXISTS idx_artefacts_kind ON artefacts (kind);
-"""
+class Cache:
+    """Per-country artefact cache rooted at ``cache_root / country``."""
 
+    def __init__(self, country: str, cache_root: Path):
+        self.country = country
+        self.root = Path(cache_root) / country
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._catalog_path = self.root / CATALOG_FILENAME
+        self._catalog = self._load_catalog()
 
-class CacheMiss(KeyError):
-    """Raised when a requested cache artefact is not in the catalog or on disk."""
+    # -- catalog --------------------------------------------------------
 
-
-@dataclass(frozen=True)
-class ArtefactRecord:
-    """One row from the catalog. ``path`` is relative to the cache root."""
-
-    country: str
-    scenario: str
-    season: str
-    kind: str
-    crop_method: str
-    code_version: str
-    config_hash: str
-    path: str
-    format: ArtefactFormat
-    created_at: str
-
-
-# ---------------------------------------------------------------------------
-# Catalog
-# ---------------------------------------------------------------------------
-
-
-class Catalog:
-    """SQLite-backed index of cache artefacts.
-
-    Operations: register / lookup / invalidate / list_all. The natural key is
-    ``(country, scenario, season, kind, crop_method, config_hash)``; re-
-    registering the same key updates ``path``, ``format``, ``code_version``,
-    and ``created_at`` rather than inserting a duplicate.
-    """
-
-    def __init__(self, db_path: Path | str) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_schema()
-
-    @contextlib.contextmanager
-    def _conn(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.db_path)
+    def _load_catalog(self) -> dict[str, dict[str, Any]]:
+        if not self._catalog_path.is_file():
+            return {}
         try:
-            yield conn
-            conn.commit()
-        finally:
-            conn.close()
+            return json.loads(self._catalog_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
 
-    def _init_schema(self) -> None:
-        with self._conn() as conn:
-            conn.executescript(CATALOG_SCHEMA)
+    def _save_catalog(self) -> None:
+        self._catalog_path.write_text(json.dumps(self._catalog, indent=2, sort_keys=True))
 
-    def register(
+    def _max_dep_mtime(self, deps: Iterable[Path]) -> float:
+        mtimes = [Path(p).stat().st_mtime for p in deps if Path(p).exists()]
+        return max(mtimes) if mtimes else 0.0
+
+    def has(self, key: str) -> bool:
+        return key in self._catalog
+
+    def is_fresh(self, key: str, deps: Iterable[Path]) -> bool:
+        """``True`` if the artefact exists, all its on-disk files are present,
+        and no dependency mtime exceeds the recorded ``input_mtime``."""
+        if key not in self._catalog:
+            return False
+        entry = self._catalog[key]
+        path = self.root / entry["path"]
+        if not path.exists():
+            return False
+        current = self._max_dep_mtime(deps)
+        recorded = float(entry.get("input_mtime", 0.0))
+        return current <= recorded + 1e-6  # tolerate fp jitter
+
+    def invalidate(self, key: str) -> None:
+        entry = self._catalog.pop(key, None)
+        if entry is None:
+            self._save_catalog()
+            return
+        path = self.root / entry["path"]
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.is_file():
+            path.unlink(missing_ok=True)
+        scalars = self.root / "parquet" / f"{key}__scalars.json"
+        scalars.unlink(missing_ok=True)
+        self._save_catalog()
+
+    def clear(self) -> None:
+        for key in list(self._catalog):
+            self.invalidate(key)
+        # remove any orphaned directories
+        for sub in ("parquet", "zarr"):
+            sub_dir = self.root / sub
+            if sub_dir.is_dir() and not any(sub_dir.iterdir()):
+                sub_dir.rmdir()
+
+    # -- save -----------------------------------------------------------
+
+    def save(
         self,
+        key: str,
+        value: Any,
         *,
-        country: str,
-        scenario: str,
-        season: str,
-        kind: str,
-        crop_method: str,
-        path: str,
-        format: ArtefactFormat,
-        code_version: str = "",
-        config_hash: str = "",
-    ) -> None:
-        with self._conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO artefacts (country, scenario, season, kind, crop_method,
-                                       code_version, config_hash, path, format)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (country, scenario, season, kind, crop_method, config_hash)
-                DO UPDATE SET path = excluded.path,
-                              format = excluded.format,
-                              code_version = excluded.code_version,
-                              created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                """,
-                (
-                    country, scenario, season, kind, crop_method,
-                    code_version, config_hash, path, format,
-                ),
-            )
-
-    def lookup(
-        self,
-        *,
-        country: str,
-        scenario: str,
-        season: str,
-        kind: str,
-        crop_method: str,
-        config_hash: str = "",
-    ) -> ArtefactRecord:
-        with self._conn() as conn:
-            row = conn.execute(
-                """
-                SELECT country, scenario, season, kind, crop_method,
-                       code_version, config_hash, path, format, created_at
-                FROM artefacts
-                WHERE country = ? AND scenario = ? AND season = ?
-                  AND kind = ? AND crop_method = ? AND config_hash = ?
-                """,
-                (country, scenario, season, kind, crop_method, config_hash),
-            ).fetchone()
-        if row is None:
-            raise CacheMiss(
-                f"no catalog entry for country={country!r} scenario={scenario!r} "
-                f"season={season!r} kind={kind!r} crop_method={crop_method!r} "
-                f"config_hash={config_hash!r}"
-            )
-        return ArtefactRecord(*row)
-
-    def invalidate(
-        self,
-        *,
-        country: str | None = None,
+        deps: Iterable[Path] = (),
         kind: str | None = None,
-        crop_method: str | None = None,
-        code_version: str | None = None,
-    ) -> int:
-        """Delete catalog rows matching the filters AND remove their files.
+    ) -> None:
+        """Persist *value* under *key*; record max(dep mtimes) for staleness checks.
 
-        Each provided filter narrows the deletion. Pass no filters to wipe
-        the whole catalog (and every artefact file under the cache root).
-        Files that are already missing are skipped silently — partial-state
-        cleanup must not error out.
+        Supported value types:
 
-        Returns the number of catalog rows deleted.
+        - :class:`pandas.DataFrame` / :class:`pandas.Series` → parquet
+        - ``dict[str, pandas.DataFrame]`` → folder of parquets
+        - ``dict[str, dict[str, pandas.DataFrame]]`` → nested folders (depth 2)
+        - :class:`xarray.Dataset` / :class:`xarray.DataArray` → zarr
+        - ``dict[str, xarray.Dataset]`` (or DataArray) → folder of zarrs
+        - dataclass with pandas / scalar fields → folder of parquets + scalars.json
         """
-        clauses: list[str] = []
-        params: list[str] = []
-        if country is not None:
-            clauses.append("country = ?")
-            params.append(country)
-        if kind is not None:
-            clauses.append("kind = ?")
-            params.append(kind)
-        if crop_method is not None:
-            clauses.append("crop_method = ?")
-            params.append(crop_method)
-        if code_version is not None:
-            clauses.append("code_version = ?")
-            params.append(code_version)
-        where = " AND ".join(clauses) if clauses else "1=1"
+        deps = list(deps)
+        max_mtime = self._max_dep_mtime(deps)
+        kind = kind or _infer_kind(value)
+        path = self._write(key, value, kind)
+        self._catalog[key] = {
+            "path": str(path.relative_to(self.root)),
+            "kind": kind,
+            "computed_at": time.time(),
+            "input_mtime": max_mtime,
+            "deps": [str(p) for p in deps],
+        }
+        self._save_catalog()
 
-        cache_root = self.db_path.parent
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT path, format FROM artefacts WHERE {where}",
-                params,
-            ).fetchall()
-            for rel_path, fmt in rows:
-                _delete_artefact_at(cache_root / rel_path, fmt)
-            conn.execute(f"DELETE FROM artefacts WHERE {where}", params)
-            return len(rows)
+    def _write(self, key: str, value: Any, kind: str) -> Path:
+        parquet_dir = self.root / "parquet"
+        zarr_dir = self.root / "zarr"
 
-    def list_all(self) -> list[ArtefactRecord]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                """
-                SELECT country, scenario, season, kind, crop_method,
-                       code_version, config_hash, path, format, created_at
-                FROM artefacts
-                ORDER BY country, scenario, season, kind, crop_method
-                """
-            ).fetchall()
-        return [ArtefactRecord(*r) for r in rows]
+        if kind == "dataframe":
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            path = parquet_dir / f"{key}.parquet"
+            _df_to_parquet(value, path)
+            return path
 
+        if kind == "series":
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            path = parquet_dir / f"{key}.parquet"
+            _df_to_parquet(value.to_frame(name=value.name or key), path)
+            return path
 
-def _delete_artefact_at(target: Path, fmt: str) -> None:
-    if fmt == "parquet" and target.is_file():
-        target.unlink()
-    elif fmt == "zarr" and target.is_dir():
-        shutil.rmtree(target)
+        if kind == "dict_of_dataframe":
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            sub = parquet_dir / key
+            shutil.rmtree(sub, ignore_errors=True)
+            sub.mkdir(parents=True)
+            for sub_key, df in value.items():
+                _df_to_parquet(df, sub / f"{sub_key}.parquet")
+            return sub
 
+        if kind == "nested_dict_of_dataframe":
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            sub = parquet_dir / key
+            shutil.rmtree(sub, ignore_errors=True)
+            sub.mkdir(parents=True)
+            for outer, inner in value.items():
+                inner_dir = sub / outer
+                inner_dir.mkdir()
+                for sub_key, df in inner.items():
+                    _df_to_parquet(df, inner_dir / f"{sub_key}.parquet")
+            return sub
 
-# ---------------------------------------------------------------------------
-# Path resolution
-# ---------------------------------------------------------------------------
+        if kind == "dataset":
+            zarr_dir.mkdir(parents=True, exist_ok=True)
+            path = zarr_dir / f"{key}.zarr"
+            shutil.rmtree(path, ignore_errors=True)
+            value.to_zarr(path, mode="w")
+            return path
 
+        if kind == "dataarray":
+            zarr_dir.mkdir(parents=True, exist_ok=True)
+            path = zarr_dir / f"{key}.zarr"
+            shutil.rmtree(path, ignore_errors=True)
+            name = value.name or key
+            value.rename(name).to_dataset().to_zarr(path, mode="w")
+            return path
 
-def _parquet_path_per_country(
-    cache_root: Path, country: str, kind: str, scenario: str, season: str, crop_method: str
-) -> Path:
-    return (
-        cache_root / "parquet" / country / scenario / season /
-        f"{kind}__{crop_method}.parquet"
-    )
+        if kind == "dict_of_dataset":
+            zarr_dir.mkdir(parents=True, exist_ok=True)
+            sub = zarr_dir / key
+            shutil.rmtree(sub, ignore_errors=True)
+            sub.mkdir(parents=True)
+            for sub_key, ds in value.items():
+                _safe = sub_key.replace("/", "_")
+                ds.to_zarr(sub / f"{_safe}.zarr", mode="w")
+            return sub
 
+        if kind == "dataclass":
+            parquet_dir.mkdir(parents=True, exist_ok=True)
+            sub = parquet_dir / key
+            shutil.rmtree(sub, ignore_errors=True)
+            sub.mkdir(parents=True)
+            scalars: dict[str, Any] = {}
+            for f in fields(value):
+                attr = getattr(value, f.name)
+                if isinstance(attr, pd.DataFrame):
+                    _df_to_parquet(attr, sub / f"{f.name}.parquet")
+                elif isinstance(attr, pd.Series):
+                    _df_to_parquet(
+                        attr.to_frame(name=attr.name or f.name),
+                        sub / f"{f.name}.parquet",
+                    )
+                else:
+                    scalars[f.name] = attr
+            (sub / "scalars.json").write_text(json.dumps(scalars))
+            (sub / "_dataclass.json").write_text(
+                json.dumps({"qualname": f"{type(value).__module__}.{type(value).__name__}"})
+            )
+            return sub
 
-def _parquet_path_timeseries(
-    cache_root: Path, country: str, variable: str, crop_method: str
-) -> Path:
-    return (
-        cache_root / "parquet" / country / "timeseries" /
-        f"{variable}__{crop_method}.parquet"
-    )
+        raise ValueError(f"unsupported cache kind: {kind!r}")
 
+    # -- load -----------------------------------------------------------
 
-def _parquet_path_global(cache_root: Path, kind: str) -> Path:
-    return cache_root / "parquet" / GLOBAL_COUNTRY / f"{kind}.parquet"
+    def load(self, key: str) -> Any:
+        if key not in self._catalog:
+            raise KeyError(f"{key!r} not in cache catalog")
+        entry = self._catalog[key]
+        kind = entry["kind"]
+        path = self.root / entry["path"]
 
+        if kind == "dataframe":
+            return pd.read_parquet(path)
 
-def _zarr_path(
-    cache_root: Path, country: str, scenario: str, artefact: str, crop_method: str
-) -> Path:
-    return (
-        cache_root / "zarr" / country / scenario /
-        f"{artefact}__{crop_method}.zarr"
-    )
+        if kind == "series":
+            df = pd.read_parquet(path)
+            return df.iloc[:, 0]
 
+        if kind == "dict_of_dataframe":
+            return {p.stem: pd.read_parquet(p) for p in sorted(_iter_parquets(path))}
 
-def _resolve_config(config: Config | None) -> Config:
-    return config if config is not None else Config.from_env()
+        if kind == "nested_dict_of_dataframe":
+            return {
+                outer.name: {
+                    inner.stem: pd.read_parquet(inner)
+                    for inner in sorted(_iter_parquets(outer))
+                }
+                for outer in sorted(path.iterdir())
+                if outer.is_dir() and not outer.name.startswith("._")
+            }
 
+        if kind == "dataset":
+            return xr.open_zarr(path).load()
 
-def _catalog(config: Config) -> Catalog:
-    return Catalog(config.cache_root / CATALOG_FILENAME)
+        if kind == "dataarray":
+            ds = xr.open_zarr(path).load()
+            return ds[list(ds.data_vars)[0]]
 
+        if kind == "dict_of_dataset":
+            return {
+                p.stem: xr.open_zarr(p).load()
+                for p in sorted(_iter_zarrs(path))
+            }
 
-# ---------------------------------------------------------------------------
-# Parquet — per-country, per-(scenario, season)
-# ---------------------------------------------------------------------------
+        if kind == "dataclass":
+            qualname = json.loads((path / "_dataclass.json").read_text())["qualname"]
+            cls = _import_qualname(qualname)
+            scalars = json.loads((path / "scalars.json").read_text())
+            kwargs: dict[str, Any] = {}
+            for f in fields(cls):
+                if f.name in scalars:
+                    kwargs[f.name] = scalars[f.name]
+                    continue
+                file = path / f"{f.name}.parquet"
+                if not file.exists():
+                    continue
+                df = pd.read_parquet(file)
+                kwargs[f.name] = df.iloc[:, 0] if f.type is pd.Series else df
+            return cls(**kwargs)
 
-
-def write_parquet(
-    df: pd.DataFrame,
-    *,
-    country: str,
-    kind: str,
-    scenario: str,
-    season: str,
-    crop_method: str,
-    config: Config | None = None,
-    code_version: str = "",
-    config_hash: str = "",
-) -> Path:
-    """Write a per-country, per-(scenario, season) tabular metric table."""
-    config = _resolve_config(config)
-    abs_path = _parquet_path_per_country(
-        config.cache_root, country, kind, scenario, season, crop_method
-    )
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(abs_path, compression="snappy", index=True)
-    rel = abs_path.relative_to(config.cache_root)
-    _catalog(config).register(
-        country=country, scenario=scenario, season=season, kind=kind,
-        crop_method=crop_method, path=str(rel), format="parquet",
-        code_version=code_version, config_hash=config_hash,
-    )
-    return abs_path
-
-
-def read_parquet(
-    *,
-    country: str,
-    kind: str,
-    scenario: str,
-    season: str,
-    crop_method: str,
-    config: Config | None = None,
-    config_hash: str = "",
-) -> pd.DataFrame:
-    config = _resolve_config(config)
-    record = _catalog(config).lookup(
-        country=country, scenario=scenario, season=season, kind=kind,
-        crop_method=crop_method, config_hash=config_hash,
-    )
-    abs_path = config.cache_root / record.path
-    if not abs_path.is_file():
-        raise CacheMiss(
-            f"catalog entry exists but parquet file is missing on disk: {abs_path}"
-        )
-    return pd.read_parquet(abs_path)
-
-
-# ---------------------------------------------------------------------------
-# Parquet — per-country time-series
-# ---------------------------------------------------------------------------
-
-
-def write_parquet_timeseries(
-    df: pd.DataFrame,
-    *,
-    country: str,
-    variable: str,
-    crop_method: str,
-    config: Config | None = None,
-    code_version: str = "",
-    config_hash: str = "",
-) -> Path:
-    """Write a per-country annual time-series (long-form: model, scenario, year, value)."""
-    config = _resolve_config(config)
-    abs_path = _parquet_path_timeseries(
-        config.cache_root, country, variable, crop_method
-    )
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(abs_path, compression="snappy", index=True)
-    rel = abs_path.relative_to(config.cache_root)
-    _catalog(config).register(
-        country=country,
-        scenario=NOT_APPLICABLE,
-        season=TIMESERIES_SEASON,
-        kind=variable,
-        crop_method=crop_method,
-        path=str(rel),
-        format="parquet",
-        code_version=code_version,
-        config_hash=config_hash,
-    )
-    return abs_path
+        raise ValueError(f"unsupported cache kind: {kind!r}")
 
 
-def read_parquet_timeseries(
-    *,
-    country: str,
-    variable: str,
-    crop_method: str,
-    config: Config | None = None,
-    config_hash: str = "",
-) -> pd.DataFrame:
-    config = _resolve_config(config)
-    record = _catalog(config).lookup(
-        country=country,
-        scenario=NOT_APPLICABLE,
-        season=TIMESERIES_SEASON,
-        kind=variable,
-        crop_method=crop_method,
-        config_hash=config_hash,
-    )
-    abs_path = config.cache_root / record.path
-    if not abs_path.is_file():
-        raise CacheMiss(
-            f"catalog entry exists but parquet file is missing on disk: {abs_path}"
-        )
-    return pd.read_parquet(abs_path)
+def _df_to_parquet(df: pd.DataFrame, path: Path) -> None:
+    """Write a DataFrame to parquet (parquet requires string column names)."""
+    out = df.copy()
+    out.columns = [str(c) for c in out.columns]
+    out.to_parquet(path)
 
 
-# ---------------------------------------------------------------------------
-# Parquet — global (ensemble-wide, no country scope)
-# ---------------------------------------------------------------------------
+def _iter_parquets(directory: Path):
+    """Yield real parquet files under *directory*, skipping macOS Apple Double
+    sidecars (``._foo``) that appear on filesystems mounted with extended-
+    attribute synthesis."""
+    return (p for p in directory.glob("*.parquet") if not p.name.startswith("._"))
 
 
-def write_parquet_global(
-    df: pd.DataFrame,
-    *,
-    kind: str,
-    config: Config | None = None,
-    code_version: str = "",
-    config_hash: str = "",
-) -> Path:
-    """Write a global artefact (no country scope, e.g. GWL crossing years)."""
-    config = _resolve_config(config)
-    abs_path = _parquet_path_global(config.cache_root, kind)
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(abs_path, compression="snappy", index=True)
-    rel = abs_path.relative_to(config.cache_root)
-    _catalog(config).register(
-        country=GLOBAL_COUNTRY,
-        scenario=NOT_APPLICABLE,
-        season=NOT_APPLICABLE,
-        kind=kind,
-        crop_method=NOT_APPLICABLE,
-        path=str(rel),
-        format="parquet",
-        code_version=code_version,
-        config_hash=config_hash,
-    )
-    return abs_path
+def _iter_zarrs(directory: Path):
+    """Yield real zarr stores under *directory*, skipping macOS Apple Double
+    sidecars."""
+    return (p for p in directory.glob("*.zarr") if not p.name.startswith("._"))
 
 
-def read_parquet_global(
-    *,
-    kind: str,
-    config: Config | None = None,
-    config_hash: str = "",
-) -> pd.DataFrame:
-    config = _resolve_config(config)
-    record = _catalog(config).lookup(
-        country=GLOBAL_COUNTRY,
-        scenario=NOT_APPLICABLE,
-        season=NOT_APPLICABLE,
-        kind=kind,
-        crop_method=NOT_APPLICABLE,
-        config_hash=config_hash,
-    )
-    abs_path = config.cache_root / record.path
-    if not abs_path.is_file():
-        raise CacheMiss(
-            f"catalog entry exists but parquet file is missing on disk: {abs_path}"
-        )
-    return pd.read_parquet(abs_path)
+def _import_qualname(qualname: str) -> type:
+    module_name, _, name = qualname.rpartition(".")
+    import importlib
+    return getattr(importlib.import_module(module_name), name)
 
 
-# ---------------------------------------------------------------------------
-# Zarr — per-country fields and matrices
-# ---------------------------------------------------------------------------
-
-
-def write_zarr(
-    ds: xr.Dataset | xr.DataArray,
-    *,
-    country: str,
-    scenario: str,
-    artefact: str,
-    crop_method: str,
-    config: Config | None = None,
-    code_version: str = "",
-    config_hash: str = "",
-) -> Path:
-    """Write a per-country xarray field / matrix to a zarr directory store."""
-    config = _resolve_config(config)
-    abs_path = _zarr_path(config.cache_root, country, scenario, artefact, crop_method)
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(ds, xr.DataArray):
-        ds = ds.to_dataset(name=ds.name or artefact)
-    ds.to_zarr(abs_path, mode="w")
-    rel = abs_path.relative_to(config.cache_root)
-    _catalog(config).register(
-        country=country,
-        scenario=scenario,
-        season=NOT_APPLICABLE,
-        kind=artefact,
-        crop_method=crop_method,
-        path=str(rel),
-        format="zarr",
-        code_version=code_version,
-        config_hash=config_hash,
-    )
-    return abs_path
-
-
-def read_zarr(
-    *,
-    country: str,
-    scenario: str,
-    artefact: str,
-    crop_method: str,
-    config: Config | None = None,
-    config_hash: str = "",
-) -> xr.Dataset:
-    config = _resolve_config(config)
-    record = _catalog(config).lookup(
-        country=country,
-        scenario=scenario,
-        season=NOT_APPLICABLE,
-        kind=artefact,
-        crop_method=crop_method,
-        config_hash=config_hash,
-    )
-    abs_path = config.cache_root / record.path
-    if not abs_path.is_dir():
-        raise CacheMiss(
-            f"catalog entry exists but zarr store is missing on disk: {abs_path}"
-        )
-    return xr.open_zarr(abs_path)
-
-
-# ---------------------------------------------------------------------------
-# Human-readable export
-# ---------------------------------------------------------------------------
-
-
-def export_to_xlsx(
-    country: str,
-    output_path: Path | str,
-    *,
-    crop_method: str | None = None,
-    config: Config | None = None,
-) -> Path:
-    """Bundle every parquet artefact for a country into one xlsx workbook.
-
-    For human inspection only — the parquet caches remain the source of truth.
-    Each catalog row that matches becomes one sheet named
-    ``<scenario>__<season>__<kind>``; sheet names get truncated to Excel's
-    31-character limit if necessary. ``crop_method=None`` writes one sheet
-    per (kind, crop_method) so different cropping choices stay distinguishable.
-    """
-    config = _resolve_config(config)
-    output_path = Path(output_path)
-    catalog = _catalog(config)
-
-    rows = [
-        r for r in catalog.list_all()
-        if r.country == country
-        and r.format == "parquet"
-        and (crop_method is None or r.crop_method == crop_method)
-    ]
-    if not rows:
-        raise CacheMiss(
-            f"no parquet artefacts in catalog for country={country!r} "
-            f"crop_method={crop_method!r}"
-        )
-
-    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-        for r in rows:
-            df = pd.read_parquet(config.cache_root / r.path)
-            sheet = f"{r.scenario}__{r.season}__{r.kind}__{r.crop_method}"[:31]
-            df.to_excel(writer, sheet_name=sheet)
-    return output_path
+def _infer_kind(value: Any) -> str:
+    if isinstance(value, pd.DataFrame):
+        return "dataframe"
+    if isinstance(value, pd.Series):
+        return "series"
+    if isinstance(value, xr.Dataset):
+        return "dataset"
+    if isinstance(value, xr.DataArray):
+        return "dataarray"
+    if is_dataclass(value):
+        return "dataclass"
+    if isinstance(value, dict):
+        if not value:
+            return "dict_of_dataframe"
+        first = next(iter(value.values()))
+        if isinstance(first, pd.DataFrame):
+            return "dict_of_dataframe"
+        if isinstance(first, dict) and first and isinstance(next(iter(first.values())), pd.DataFrame):
+            return "nested_dict_of_dataframe"
+        if isinstance(first, (xr.Dataset, xr.DataArray)):
+            return "dict_of_dataset"
+    raise TypeError(f"cannot infer cache kind for {type(value).__name__}")

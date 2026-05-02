@@ -1,11 +1,9 @@
-"""Spread figures — verbatim ports from
-``legacy/cmip6-greece/GR_model_spread.ipynb``.
+"""Spread figures.
 
-Cell-to-function map: see ``scripts/m9_cell_map.md``. Each function reproduces
-its source cell byte-for-byte; the only deviations are documented in the cell
-map (data inputs come from the M8 cache / paper-era xlsx via
-``_data_adapters``, terminal ``save_figure(...)`` / ``plt.show()`` is replaced
-with ``return fig``, and imports are hoisted to module level).
+Each ``fig_*`` function consumes the spread artefacts (end-of-century change
+signals, long-term and pre-industrial spatial-mean climatologies, model
+metadata) and returns a :class:`matplotlib.figure.Figure`. Called from
+:func:`subselect.render.render` against a :class:`subselect.state.SubselectState`.
 """
 
 from __future__ import annotations

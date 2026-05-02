@@ -483,34 +483,35 @@ The legacy code's pickle artefacts (in \texttt{legacy/cmip6-greece/}) are
 language-locked and version-fragile; parquet replaces them and removes
 that dependency.
 
-\paragraph{Definition.} The catalog schema enforces the natural key
-$(\texttt{country}, \texttt{scenario}, \texttt{season}, \texttt{kind},
-\texttt{crop\_method}, \texttt{config\_hash})$ as \texttt{UNIQUE}. Sentinel
-values \texttt{\_global} (country) and \texttt{n/a} (scenario / season /
-crop\_method) are used for global and time-series artefacts so the
-\texttt{NOT NULL} constraint stays enforceable. Three parquet path
-conventions:
+\paragraph{Definition.} The cache is per-country and indexed by a small
+JSON catalog at \texttt{cache/}$\langle c \rangle$\texttt{/catalog.json}.
+Each artefact records its on-disk path, the maximum mtime of its declared
+inputs at write time, and the time of computation. Layout:
 %
 \begin{align*}
-  \text{per-country} \quad &\text{cache/parquet/}\langle c \rangle / \langle s \rangle / \langle p \rangle / \langle k \rangle\_\_\langle m \rangle \texttt{.parquet} \\
-  \text{time-series} \quad &\text{cache/parquet/}\langle c \rangle / \texttt{timeseries} / \langle v \rangle\_\_\langle m \rangle \texttt{.parquet} \\
-  \text{global}       \quad &\text{cache/parquet/\_global/} \langle k \rangle \texttt{.parquet}
+  \text{tabular}     \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle \texttt{.parquet} \\
+  \text{dict-tabular} \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle / \langle s \rangle \texttt{.parquet} \\
+  \text{dataclass}   \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle / \{\langle f \rangle \texttt{.parquet}, \texttt{scalars.json}\} \\
+  \text{fields}      \quad &\text{cache/}\langle c \rangle / \texttt{zarr/} \langle k \rangle \texttt{.zarr}
 \end{align*}
 %
-where $c$ = country, $s$ = scenario, $p$ = season, $k$ = kind, $m$ =
-crop method, $v$ = variable. Zarr stores live at
-\texttt{cache/zarr/}$\langle c \rangle$/$\langle s \rangle$/$\langle a
-\rangle$\_\_$\langle m \rangle$\texttt{.zarr}.
+where $c$ = country, $k$ = artefact key, $s$ = sub-key, $f$ = dataclass
+field. On read, an artefact is invalidated whenever any declared input
+file has an mtime newer than the recorded maximum.
 
-\paragraph{Implementation.} \texttt{subselect.cache.Catalog} for the SQLite
-index plus \texttt{write\_parquet}, \texttt{read\_parquet},
-\texttt{write\_parquet\_timeseries}, \texttt{read\_parquet\_timeseries},
-\texttt{write\_parquet\_global}, \texttt{read\_parquet\_global},
-\texttt{write\_zarr}, \texttt{read\_zarr}, and \texttt{export\_to\_xlsx}.
+\paragraph{Implementation.} \texttt{subselect.cache.Cache} exposes
+\texttt{has}, \texttt{is\_fresh}, \texttt{save}, \texttt{load},
+\texttt{invalidate}, \texttt{clear}. Artefact kinds are inferred from
+value type (\texttt{DataFrame}, \texttt{Series}, \texttt{Dataset},
+\texttt{DataArray}, \texttt{dict[str, DataFrame]}, dataclass).
 \texttt{zarr<3} pinned in \texttt{environment.yml} and
 \texttt{pyproject.toml} for v2 directory-store stability.
 
-\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+\paragraph{Decided.} 2026-05-01; revised 2026-05-02 with the
+\texttt{l1l2-restructured} tag to drop the SQLite catalog in favour of a
+per-country JSON catalog. The simpler scope (one country, one cache, one
+catalog) made cross-country indexing unnecessary; SQLite added I/O and
+schema overhead without buying anything at the relevant access pattern.
 
 % =============================================================================
 \bibliographystyle{plainnat}

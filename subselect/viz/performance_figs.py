@@ -1,12 +1,10 @@
-"""Performance figures — verbatim ports from
-``legacy/cmip6-greece/GR_model_performance_HM.ipynb``.
+"""Performance figures.
 
-Cell-to-function map: see ``scripts/m9_cell_map.md``. Each function reproduces
-its source cell byte-for-byte; the only deviations are documented in the cell
-map (data inputs come from the M7 cache via ``_data_adapters``, terminal
-``save_figure(...)`` / ``plt.show()`` is replaced with ``return fig`` (or a
-``dict[str, Figure]`` for cells that loop over variables), and imports are
-hoisted to module level).
+Each ``fig_*`` function consumes pre-computed performance artefacts (HPS
+rankings, per-variable metric tables, monthly climatologies, σ_obs scalars,
+bias-map fields) and returns a :class:`matplotlib.figure.Figure`. They are
+called from :func:`subselect.render.render` against a
+:class:`subselect.state.SubselectState`.
 """
 
 from __future__ import annotations
