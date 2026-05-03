@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import warnings
 import os
 from typing import Dict, Iterable
 
@@ -1441,9 +1442,18 @@ def fig_bias_maps_per_variable(
             cbar = fig.colorbar(sm, cax=cax, orientation='horizontal', extend='both')
             cbar.set_label(bias_label, fontsize=13)
 
-        # plt.tight_layout() is incompatible with cartopy GeoAxes and emits
-        # a warning on every bias-map render; the layout is already managed
-        # via explicit add_axes calls above.
+        # tight_layout is load-bearing for the bias-map figure: it
+        # produces the polished spacing and uniform whitespace the rest
+        # of the figure depends on. Cartopy GeoAxes triggers a
+        # compatibility UserWarning on every call; suppress it locally
+        # so the call still runs without flooding the terminal.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=".*not compatible with tight_layout.*",
+                category=UserWarning,
+            )
+            plt.tight_layout()
         return fig
 
     figs: Dict[str, plt.Figure] = {}
