@@ -39,7 +39,7 @@ framework for country-scale CMIP6 sub-ensemble selection. Each decision lists th
 question, the alternatives considered, the chosen option, the rationale, the
 defining equation or pseudocode, the implementation pointer, and the date.
 The document is appended to as decisions are made, never edited retroactively.
-It feeds the EGU~2026 poster \citep[abstract EGU26-14502]{subselect:abstract}
+It feeds the EGU~2026 poster (abstract EGU26-14502)
 and the follow-up framework paper.
 \end{abstract}
 
@@ -55,7 +55,7 @@ of the variables, reference dataset, evaluation window, and aggregation choices.
 
 % --- entries appended below as performance methodology evolves -----------------
 
-\subsection{Paper-era data sources and regridding}\label{sec:performance-data-sources}
+\subsection{Data sources and regridding}\label{sec:performance-data-sources}
 
 \paragraph{Question.} Which CMIP6 grid and which observation product back
 the published Greece paper's HPS values, and what regridding choices stand
@@ -150,7 +150,7 @@ Greece pipeline reduced the single-grid per-pixel std-over-months map
 to $\sigma_{\text{obs}}$ via an \emph{unweighted}
 \texttt{.mean(dim=['lat', 'lon'])}, inconsistent with the
 $\cos\varphi$-weighted spatial mean used everywhere else. Version 0.1.0
-restored the $\cos\varphi$ weighting; see § Methodology corrections
+restored the $\cos\varphi$ weighting; see \S\ Methodology corrections
 (post-paper).
 
 \paragraph{Implementation.}
@@ -166,7 +166,7 @@ products separately addressable; both are TOML-overridable.
 \paragraph{Decided.} 2026-05-01, in version 0.1.0. Both initial parity
 caveats (the unweighted spatial mean and the cmip6-grid upscaled
 $\sigma_{\text{obs}}$ source) were corrected in version 0.1.0; see
-§ Methodology corrections (post-paper).
+\S\ Methodology corrections (post-paper).
 
 \subsection{Bias-map observed-mean panel: native 0.5\textdegree{} W5E5}\label{sec:performance-bias-map-obs}
 
@@ -202,8 +202,8 @@ The published Greece pipeline carried two minor inconsistencies in the
 $\sigma_{\text{obs}}$ scalar; version 0.1.0 corrected both. The
 corrections shift TSS values slightly (typically $<\!1\%$ per model)
 and therefore shift HMperf and the model rankings. The corrected
-behaviour is canonical from version 0.1.0 onward. Paper-era reference
-outputs are archived under
+behaviour is canonical from version 0.1.0 onward. Reference outputs
+from the published Greece pipeline are archived under
 \texttt{documentation/historical\_paper\_outputs/} for traceability.
 
 \paragraph{Correction 1: $\cos\varphi$-weighted spatial mean.}
@@ -490,7 +490,7 @@ SQLite's I/O and schema overhead.
 \subsection*{Cache scope: global vs per-country}
 
 \paragraph{Question.} Where do per-(model, variable) climatology fields,
-σ\textsubscript{obs} grids, and per-(model, variable, scenario)
+$\sigma_\text{obs}$ grids, and per-(model, variable, scenario)
 annual-mean fields live?
 
 \paragraph{Choice.} Country-independent artefacts move to
@@ -501,7 +501,7 @@ reuse-per-country} convention.
 \paragraph{Rationale.} A per-(model, variable) monthly climatology over
 the 1995--2014 evaluation window depends only on (model, variable), not
 on the country chosen for analysis. The same is true of the corresponding
-upscaled-observation climatology, the per-period interannual σ map, the
+upscaled-observation climatology, the per-period interannual $\sigma$ map, the
 end-of-century and pre-industrial monthly climatologies, and the
 per-(model, variable, scenario) annual-mean field 1850--2100. Country
 analysis cropping is a slice of the cached field, not a recomputation of
@@ -525,7 +525,7 @@ cached fields.
   model's native grid over 1995--2014.
 \item Per-(model, variable) upscaled-observation climatology
   (\texttt{obs\_clim\_\_<var>\_\_<model>.zarr}).
-\item Per-(model, variable, period) interannual σ map
+\item Per-(model, variable, period) interannual $\sigma$ map
   (\texttt{sigma\_ref\_\_<var>\_\_<model>.zarr}).
 \item Per-(model, variable, scenario) end-of-century climatology
   (\texttt{eoc\_clim\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 12 months over 2081--2100.
@@ -534,14 +534,14 @@ cached fields.
 \item Per-(model, variable, scenario) annual-mean field
   (\texttt{annual\_field\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 251 years
   on the model's native grid.
-\item Native 0.5° W5E5 climatology + per-period σ field per variable
-  (\texttt{native\_sigma\_obs\_\_<var>.zarr}); feeds the σ\textsubscript{obs}
+\item Native $0.5^\circ$ W5E5 climatology + per-period $\sigma$ field per variable
+  (\texttt{native\_sigma\_obs\_\_<var>.zarr}); feeds the $\sigma_\text{obs}$
   scalar in the TSS denominator.
 \end{itemize}
 
 \paragraph{Per-country artefacts} are country-mean reductions of the
 above: HPS / TSS / BVS metric tables, country annual time-series,
-change\_signals, country σ\textsubscript{obs} scalars per period, country
+change\_signals, country $\sigma_\text{obs}$ scalars per period, country
 profile signals, country-mean monthly climatologies, country-mean bias
 fields, and the warming-level / future-anomaly tables.
 
