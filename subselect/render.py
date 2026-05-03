@@ -1,13 +1,9 @@
 """L2 orchestrator: turn a :class:`SubselectState` into a folder of figures.
 
 Single public entry point :func:`render`. Every figure function consumes
-state attributes directly — there is no xlsx bridge.
-
-The default writer puts each figure under
-``results/<country>/figures/<category>/<filename>.png`` at the published
-DPI (300). Matplotlib is used as the rendering backend; a future Phase 4
-web-app branch can swap in a plotly backend without touching the figure
-functions themselves.
+state attributes directly. The default writer puts each figure under
+``results/<country>/figures/<category>/<filename>.png`` at 300 DPI using
+the matplotlib backend.
 """
 
 from __future__ import annotations
@@ -65,6 +61,19 @@ def render(
     include_seasonal_bias
         Whether to render the four seasonal bias maps in addition to the
         annual one (per variable).
+
+    Returns
+    -------
+    dict[str, pathlib.Path]
+        Mapping from internal figure key to the written file path.
+
+    Examples
+    --------
+    .. code:: python
+
+        from subselect.compute import compute
+        from subselect.render import render
+        render(compute("greece"))
     """
     config = config or Config.from_env()
     country = country or state.country
@@ -98,36 +107,38 @@ def render(
             fig, perf_dir / f"{country}_HPS_rankings_annual_and_seasons.png",
         )
 
-        # seasonal_perf_revised — per-variable
-        seasonal_perf_specs = [
-            ("tas", performance_figs.fig_seasonal_perf_revised_tas),
-            ("pr", performance_figs.fig_seasonal_perf_revised_pr),
-            ("psl", performance_figs.fig_seasonal_perf_revised_psl),
-            ("tasmax", performance_figs.fig_seasonal_perf_revised_tasmax),
-        ]
-        for var, fn in seasonal_perf_specs:
+        # Per-variable seasonal performance.
+        for var in ("tas", "pr", "psl"):
             if var not in state.monthly_means or var not in state.performance_metrics:
                 continue
             mm = state.monthly_means[var]
-            kwargs = dict(
+            fig = performance_figs.fig_seasonal_performance(
+                variable=var,
                 ranked_full=ranked_full,
+                all_perf_metrics=state.performance_metrics[var],
+                cmip6_mon_means=mm["cmip6"],
+                observed_mon_means=mm["obs"],
                 model_ids=model_ids,
             )
-            kwargs[f"{var}_all_perf_metrics"] = state.performance_metrics[var]
-            kwargs[f"{var}_cmip6_mon_means"] = mm["cmip6"]
-            kwargs[f"{var}_observed_mon_means"] = mm["obs"]
-            if var == "tasmax":
-                kwargs["ordered_models"] = ordered_models
-            fig = fn(**kwargs)
-            written[f"{var}_seasonal_perf_revised"] = _save(
-                fig, perf_dir / f"{country}_{var}_seasonal_perf_revised.png",
+            written[f"{var}_seasonal_performance"] = _save(
+                fig, perf_dir / f"{country}_{var}_seasonal_performance.png",
             )
 
-        # Composite Taylor (15 panels + shared legend) replaces the 12
-        # individual annual + 4-season per-variable Taylor figures.
-        # ``fig_annual_taylor_per_variable`` and ``fig_4season_taylor_per_variable``
-        # remain in the module for backwards compatibility but are no longer
-        # invoked by the entry point.
+        if "tasmax" in state.monthly_means and "tasmax" in state.performance_metrics:
+            mm = state.monthly_means["tasmax"]
+            fig = performance_figs.fig_seasonal_performance_tasmax(
+                ranked_full=ranked_full,
+                tasmax_all_perf_metrics=state.performance_metrics["tasmax"],
+                tasmax_cmip6_mon_means=mm["cmip6"],
+                tasmax_observed_mon_means=mm["obs"],
+                model_ids=model_ids,
+                ordered_models=ordered_models,
+            )
+            written["tasmax_seasonal_performance"] = _save(
+                fig, perf_dir / f"{country}_tasmax_seasonal_performance.png",
+            )
+
+        # Composite Taylor: 15 panels + shared legend in a single figure.
         fig = performance_figs.fig_composite_taylor(
             perf_metrics=state.performance_metrics,
             observed_std_dev_df=state.observed_std_dev,
@@ -171,7 +182,7 @@ def render(
         long_term_df = state.long_term_spread.reindex(ordered_models)
         long_pi_change_df = state.change_signals.reindex(ordered_models)
 
-        fig = spread_figs.fig_annual_spread_rev12(
+        fig = spread_figs.fig_annual_spread(
             ranked_full=ranked_full,
             long_pi_change_df=long_pi_change_df,
             long_term_df=long_term_df,
@@ -179,11 +190,11 @@ def render(
             model_ids=model_ids,
             country=country,
         )
-        written["annual_spread_rev12"] = _save(
-            fig, spread_dir / f"{country}_annual_annual_spread_rev12.png",
+        written["annual_spread"] = _save(
+            fig, spread_dir / f"{country}_annual_spread.png",
         )
 
-        fig = spread_figs.fig_seasonal_spread_perSeasonBars_right_named_rev1(
+        fig = spread_figs.fig_seasonal_spread(
             ranked_full=ranked_full,
             long_pi_change_df=long_pi_change_df,
             long_term_df=long_term_df,
@@ -191,8 +202,8 @@ def render(
             model_ids=model_ids,
             country=country,
         )
-        written["seasonal_spread_perSeasonBars_right_named_rev1"] = _save(
-            fig, spread_dir / f"{country}_seasonal_spread_perSeasonBars_right_named_rev1.png",
+        written["seasonal_spread"] = _save(
+            fig, spread_dir / f"{country}_seasonal_spread.png",
         )
 
     # ------------------------------------------------------------------

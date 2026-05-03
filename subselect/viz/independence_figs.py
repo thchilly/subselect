@@ -1,5 +1,6 @@
-"""Independence figures — Phase 1 stub.
+"""Independence figures (placeholder).
 
-Phase 0 leaves this empty. Phase 1 ships dendrograms / family-cluster plots
-alongside the independence methodology. See docs/model_similarity.md.
+Will host dendrograms and family-cluster plots that visualise the
+independence methodology defined in :mod:`subselect.independence`.
+See ``docs/model_similarity.md``.
 """

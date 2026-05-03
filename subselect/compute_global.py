@@ -213,33 +213,44 @@ def _build_native_obs_climatology(variable: str, config: Config) -> xr.Dataset |
 
 # ---------------------------------------------------------------------------
 # Cache key conventions
+#
+# Each helper returns the catalog key under which the corresponding global
+# artefact is stored. Centralising the naming here keeps producer and
+# consumer (per-country builders in :mod:`subselect.compute`) in sync.
 # ---------------------------------------------------------------------------
 
 def hist_clim_key(variable: str, model: str) -> str:
+    """Catalog key for the historical (1995–2014) monthly climatology."""
     return f"historical_clim__{variable}__{model}"
 
 
 def obs_clim_key(variable: str, model: str) -> str:
+    """Catalog key for the observed monthly climatology on the model's grid."""
     return f"obs_clim__{variable}__{model}"
 
 
 def sigma_ref_key(variable: str, model: str) -> str:
+    """Catalog key for the per-period σ_ref interannual map."""
     return f"sigma_ref__{variable}__{model}"
 
 
 def eoc_clim_key(variable: str, model: str, scenario: str) -> str:
+    """Catalog key for the end-of-century (2081–2100) monthly climatology."""
     return f"eoc_clim__{variable}__{model}__{scenario}"
 
 
 def pi_clim_key(variable: str, model: str) -> str:
+    """Catalog key for the pre-industrial (1850–1899) monthly climatology."""
     return f"pi_clim__{variable}__{model}"
 
 
 def annual_field_key(variable: str, model: str, scenario: str) -> str:
+    """Catalog key for the per-(model, scenario) annual-mean field 1850–2100."""
     return f"annual_field__{variable}__{model}__{scenario}"
 
 
 def native_sigma_obs_key(variable: str) -> str:
+    """Catalog key for the native 0.5° W5E5 σ field for one variable."""
     return f"native_sigma_obs__{variable}"
 
 

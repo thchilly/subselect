@@ -1,11 +1,12 @@
 """Typed L1 state for the country pipeline.
 
-`compute(country)` returns a `SubselectState`. Every L2 figure function reads
-from this object — it is the single in-memory representation of everything the
-country needs.
+:func:`subselect.compute.compute` returns a :class:`SubselectState`. Every
+L2 figure function reads from this object — it is the single in-memory
+representation of everything one country needs.
 
-Phase 1 (model independence) and Phase 2 (cost function) extend the state by
-adding fields here; existing callers are unaffected.
+Adding new artefacts (e.g. model-independence distances, cost-function
+results) is a one-line addition to :class:`SubselectState` plus the
+corresponding builder in :mod:`subselect.compute`.
 """
 
 from __future__ import annotations
@@ -63,22 +64,23 @@ class ProfileSignals:
 class SubselectState:
     """Every artefact the L2 figure layer needs for one country.
 
-    Constructed by :func:`subselect.compute.compute`. Adding new fields (e.g.
-    Phase 1 model-independence distances, Phase 2 cost-function results) is a
-    one-line change here plus the corresponding builder in ``compute.py``.
+    Constructed by :func:`subselect.compute.compute`. Adding new fields
+    (e.g. model-independence distances, cost-function results) is a
+    one-line change here plus the corresponding builder in
+    :mod:`subselect.compute`.
     """
 
     country: str
     cache_dir: Path
 
-    # Performance — M7
+    # Historical performance
     performance_metrics: dict[str, pd.DataFrame]
     composite_hps: pd.DataFrame
     composite_hps_full: pd.DataFrame
     observed_std_dev: pd.DataFrame
     monthly_means: dict[str, dict[str, pd.DataFrame]]
 
-    # Spread — M8
+    # Future spread
     change_signals: pd.DataFrame
     long_term_spread: pd.DataFrame
     pre_industrial_spread: pd.DataFrame
@@ -92,27 +94,24 @@ class SubselectState:
     future_anomalies_global: dict[str, dict[str, pd.DataFrame]]
     profile_signals: ProfileSignals
 
-    # Bias maps — M9.2 (xarray fields)
+    # Bias maps (xarray fields)
     observed_maps: dict[str, dict[str, xr.Dataset]] = field(default_factory=dict)
     bias_maps: dict[str, dict[str, dict[str, xr.DataArray]]] = field(default_factory=dict)
 
-    # Phase 1 / Phase 2 hooks — empty by default, populated when those phases land
+    # Independence / cost-function hooks — empty by default, populated when
+    # those layers land.
     independence: dict[str, Any] = field(default_factory=dict)
     cost: dict[str, Any] = field(default_factory=dict)
 
     @property
     def model_ids(self) -> dict[str, int]:
-        """`{model_name: integer_id}` mapping (paper-era 1..35 fixed order).
+        """``{model_name: integer_id}`` mapping for the canonical 1..35 ensemble.
 
-        Resolved from `composite_hps_full`'s index by reading the canonical
-        CMIP6_model_id mapping; cached on first access via the dataframe's own
-        index (no separate field needed).
+        Resolved by reading the canonical ``CMIP6_model_id.xlsx`` mapping
+        from ``Data/CMIP6/metadata``.
         """
-        from subselect.io import load_models_list
-
-        # Lazy: only the renderer needs this, and it should already be in
-        # composite_hps_full.index — but expose canonical mapping here.
         from subselect.config import Config
+
         config = Config.from_env()
         meta = pd.read_excel(config.cmip6_metadata_root / "CMIP6_model_id.xlsx")
         return dict(zip(meta["model"], meta["id"]))

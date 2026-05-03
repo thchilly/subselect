@@ -1,12 +1,11 @@
 """Path resolution and frozen project settings.
 
-The `Config` dataclass holds every path and parameter that downstream modules
-need to reach Data/, the GADM shapefile, the cache layer, plus the frozen
-methodology constants (W5E5 reference, evaluation/future windows, HPS variable
-list). It is the single replacement for the hardcoded Windows paths in the
-legacy notebooks (see legacy/LEGACY.md for the originals).
+:class:`Config` holds every path and parameter that downstream modules need
+to reach ``Data/``, the GADM shapefile, the cache layer, plus the frozen
+methodology constants (W5E5 reference, evaluation/future windows, HPS
+variable list).
 
-Path resolution for `data_root` (highest priority first):
+Path resolution for ``data_root`` (highest priority first):
 
 1. Environment variable ``SUBSELECT_DATA_ROOT``.
 2. User TOML at ``~/.subselect.toml`` with a ``data_root`` key (and optionally
@@ -16,35 +15,36 @@ Path resolution for `data_root` (highest priority first):
 3. Repo-relative default ``<repo>/Data``, derived from the package install
    location.
 
-Default layout (post-restructure 2026-04-30):
+Default layout:
 
 - ``data_root``           → ``<repo>/Data``                 (input only)
 - ``cache_root``          → ``<repo>/cache``                (sibling of Data/, derived artefacts)
-- ``results_root``        → ``<repo>/results``              (sibling of Data/, legacy paper outputs)
+- ``results_root``        → ``<repo>/results``              (sibling of Data/, rendered figures)
 - ``shapefile_path``              → ``<data_root>/shapefiles/gadm/gadm_410-levels.gpkg``
 - ``reference_root``              → ``<data_root>/reference/monthly_cmip6_upscaled``
 - ``single_grid_reference_root``  → ``<data_root>/reference/monthly_upscaled``
 - ``cmip6_metadata_root``         → ``<data_root>/CMIP6/metadata``
 
-Two reference products are kept side-by-side because the paper-era HPS
-pipeline uses both. ``reference_root`` (per-CMIP6-model upscaled) feeds the
-per-pixel model-vs-obs metrics (bias, RMSE, correlation, bias_score) where
-obs must live on each model's own grid. ``single_grid_reference_root``
-(single common grid) feeds the σ_obs scalar that goes into the TSS
-denominator: using a common grid here decouples TSS values from
-model-specific regridding variance and preserves cross-model comparability
-for downstream min-max normalisation. See ``documentation/methods.tex`` §
-Historical performance for the methodology entry.
+Two reference products are kept side-by-side because the HPS pipeline uses
+both. ``reference_root`` (per-CMIP6-model upscaled) feeds the per-pixel
+model-vs-obs metrics (bias, RMSE, correlation, bias_score) where obs must
+live on each model's own grid. ``single_grid_reference_root`` (single
+common grid) feeds the σ_obs scalar in the TSS denominator: using a common
+grid decouples TSS values from model-specific regridding variance and
+preserves cross-model comparability for the downstream min-max normalisation.
+See ``documentation/methods.tex`` § Historical performance for the
+methodology entry.
 
-`cache_root` and `results_root` live at the repo level (siblings of Data/),
-not inside it, so changing `SUBSELECT_DATA_ROOT` does not relocate the cache
-or the legacy paper outputs. Override either independently in the TOML.
+``cache_root`` and ``results_root`` live at the repo level (siblings of
+``Data/``), not inside it, so changing ``SUBSELECT_DATA_ROOT`` does not
+relocate the cache or the figure outputs. Override either independently
+in the TOML.
 
 Reference-dataset note: ``reference_dataset = "W5E5"`` is sourced from
 ISIMIP3a's ``gswp3-w5e5_obsclim`` product. The 1995–2014 evaluation window
 falls entirely inside the W5E5 portion of the merged GSWP3-W5E5 record. The
 ``psl`` files are W5E5-only at 1991–2019; ``tas``/``pr`` files cover
-1901–2019. ``subselect.io`` handles the per-variable filename templates.
+1901–2019. :mod:`subselect.io` handles the per-variable filename templates.
 """
 
 from __future__ import annotations
@@ -98,16 +98,19 @@ class Config:
     reference_dataset: str = "W5E5"
     eval_window: tuple[int, int] = (1995, 2014)
     future_window: tuple[int, int] = (2081, 2100)
-    # 1850–1899 inclusive (50 years) — matches the paper-era spread notebook's
-    # `slice("1850-01-01", "1899-12-31")` (legacy GR_model_spread.ipynb line 190).
-    # IPCC AR6 conventionally uses 1850–1900 (51 years); the off-by-one is an
-    # original-work artefact pinned for regression-test parity.
+    # 1850–1899 inclusive (50 years). IPCC AR6 conventionally uses
+    # 1850–1900 (51 years); we use 50 years for parity with the published
+    # Greece paper, which is the regression-test anchor.
     pre_industrial: tuple[int, int] = (1850, 1899)
     hps_variables: tuple[str, ...] = HPS_VARIABLES
     diagnostic_variables: tuple[str, ...] = DIAGNOSTIC_VARIABLES
 
     @classmethod
     def from_env(cls) -> Config:
+        """Build a :class:`Config` from environment + user TOML + repo defaults.
+
+        See the module docstring for the full resolution chain.
+        """
         data_root, overrides = _resolve_paths()
         return cls(
             data_root=data_root,
@@ -129,6 +132,7 @@ class Config:
         )
 
     def with_overrides(self, **kwargs: object) -> Config:
+        """Return a copy of this config with the given fields replaced."""
         return replace(self, **kwargs)
 
 

@@ -1,10 +1,9 @@
 """Data loaders for CMIP6, the W5E5 reference, country bboxes, and the model list.
 
-The legacy paper-era pipeline did no on-the-fly regridding (verified during
-M7.0 against ``legacy/cmip6-greece/GR_model_performance_HM.ipynb``): CMIP6
-data lives on each model's native grid, observations are pre-upscaled to
-match each CMIP6 model's grid for the per-pixel model-vs-obs metrics, and
-``subselect`` consumes both as-is. M7 confirmed and ported this convention.
+The pipeline does no on-the-fly regridding: CMIP6 data lives on each model's
+native grid, and observations are pre-upscaled to match each CMIP6 model's
+grid for the per-pixel model-vs-obs metrics. ``subselect`` consumes both
+as-is.
 
 Two observation reference products are handled side-by-side:
 
@@ -52,14 +51,10 @@ REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
 }
 
 # Single-grid (common-grid) variant used for the σ_obs scalar in the TSS
-# denominator. One file per variable, no per-model subdir.
-#
-# NB: this is the **cmip6-grid upscaled** product (1.25° × 1.875°), not native
-# W5E5. The legacy paper notebook (cell 5 of GR_model_performance_HM.ipynb,
-# lines 27–30) reads from ``ISIMIP3a/monthly_upscaled/*_cmip6_upscaled.nc`` for
-# σ_obs, so M7 reproduces the paper-era choice. The native 0.5° W5E5 product
-# is exposed separately via :func:`load_native_w5e5` for figure-display use
-# (e.g. the bias-map observed-mean top panel in cell 34).
+# denominator. One file per variable, no per-model subdir. This is the
+# cmip6-grid upscaled product (1.25° × 1.875°), not native W5E5; the native
+# 0.5° W5E5 product is exposed separately via :func:`load_native_w5e5` for
+# figure-display use (e.g. the observed-mean panel in the bias-map figure).
 SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
     "tas": "tas_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
     "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019_cmip6_upscaled.nc",
@@ -67,13 +62,11 @@ SINGLE_GRID_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
     "psl": "psl_w5e5_obsclim_mon_1991_2019_cmip6_upscaled.nc",
 }
 
-# Native 0.5° single-grid W5E5 — used for observed-mean display panels (e.g.
-# the bias-map cell 34 top panel). The legacy notebook reads these via
-# ``base_path/ISIMIP3a/monthly/<var>_gswp3-w5e5_obsclim_mon_1901_2019.nc``;
-# the refactor's canonical home is ``Data/reference/monthly_05/``. psl is the
-# W5E5 single-product (no GSWP3 merge), 1991–2019. tasmax has a hyphen-
-# separated date range in its filename (legacy ISIMIP3a artefact — kept as-is
-# to match the canonical filename).
+# Native 0.5° single-grid W5E5 — used for observed-mean display panels in
+# the bias-map figure. Canonical location is ``Data/reference/monthly_05/``.
+# ``psl`` is the W5E5 single-product (no GSWP3 merge), 1991–2019.
+# ``tasmax`` has a hyphen-separated date range in its filename (ISIMIP3a
+# upstream artefact — kept as-is to match the canonical filename).
 NATIVE_REFERENCE_FILENAME_TEMPLATES: dict[str, str] = {
     "tas": "tas_gswp3-w5e5_obsclim_mon_1901_2019.nc",
     "pr": "pr_gswp3-w5e5_obsclim_mon_1901_2019.nc",
@@ -89,9 +82,9 @@ MODELS_PLACEHOLDER = "aaaa"
 def load_models_list(config: Config | None = None) -> list[str]:
     """Return the canonical 1..35 model ordering from ``Data/models_ordered.csv``.
 
-    The first line is the ``aaaa`` placeholder/header used by the paper-era code;
-    it is dropped here. Athanasios is firm that the resulting 1..35 ordering is
-    preserved throughout the project (every figure marker uses this index).
+    The first line is an ``aaaa`` placeholder/header that is dropped here.
+    The resulting 1..35 ordering is the index used throughout the project —
+    every figure marker references it.
     """
     config = config or Config.from_env()
     path = config.data_root / MODELS_CSV_NAME
@@ -149,17 +142,14 @@ def load_single_grid_w5e5(
 
     Returns the **cmip6-grid upscaled** product (1.25° × 1.875°,
     ``Data/reference/monthly_upscaled/<var>_*_cmip6_upscaled.nc``). This is
-    the σ_obs source in M7's TSS denominator and reproduces the paper-era
-    choice — the legacy notebook (``cell 5`` of
-    ``GR_model_performance_HM.ipynb``) reads from
-    ``ISIMIP3a/monthly_upscaled/<var>_*_cmip6_upscaled.nc`` for σ_obs. The
-    per-CMIP6-model upscaled product (:func:`load_w5e5`) is the wrong source
-    for σ_obs because each model's grid would yield a slightly different σ
-    via regridding variance, breaking cross-model comparability when TSS
-    values are min-max normalised across the 35-model ensemble.
+    the σ_obs source for the TSS denominator. The per-CMIP6-model upscaled
+    product (:func:`load_w5e5`) is the wrong source for σ_obs because each
+    model's grid would yield a slightly different σ via regridding variance,
+    breaking cross-model comparability when TSS values are min-max normalised
+    across the 35-model ensemble.
 
     For the **native 0.5°** W5E5 product (used by figure-display code only —
-    e.g. the bias-map observed-mean top panel in cell 34) call
+    e.g. the observed-mean panel in the bias-map figure) call
     :func:`load_native_w5e5` instead.
 
     See ``documentation/methods.tex`` § Historical performance for the
@@ -196,19 +186,12 @@ def load_native_w5e5(
     """Open the native 0.5° single-grid W5E5 reference dataset for one variable.
 
     Returns the un-upscaled, native-grid GSWP3-W5E5 (or W5E5 for ``psl``)
-    product at 0.5° × 0.5° resolution (360 × 720 global grid). This is the
-    source the legacy ``cell 5`` of ``GR_model_performance_HM.ipynb`` (lines
-    50–60, ``gswp3_raw_display_path``) reads for the bias-map figure's
-    observed-mean top panel. Use this loader **for figure display only** —
-    the σ_obs scalar in the TSS denominator goes through
-    :func:`load_single_grid_w5e5` which returns the cmip6-grid upscaled
-    variant for paper-era parity (case (a) in the M9.2 σ_obs sanity check;
-    Phase 1+ correction candidate documented in
-    ``documentation/methods.tex``).
+    product at 0.5° × 0.5° resolution (360 × 720 global grid). Use **for
+    figure display only** — the σ_obs scalar in the TSS denominator goes
+    through :func:`load_single_grid_w5e5`, which returns the cmip6-grid
+    upscaled variant.
 
-    Canonical path: ``<data_root>/reference/monthly_05/<var>_*.nc``. No
-    fallback — earlier copies under ``Data/to_dispose/ISIMIP3a/monthly/``
-    were SSD bit-rot and have been deleted.
+    Canonical path: ``<data_root>/reference/monthly_05/<var>_*.nc``.
     """
     path = native_reference_path(variable, config=config)
     if not path.is_file():
@@ -218,10 +201,8 @@ def load_native_w5e5(
             f"refactor expects native 0.5° obs at <data_root>/reference/monthly_05/."
         )
     ds = xr.open_dataset(path)
-    # Native ISIMIP3a files have descending latitude (90 → -90); xarray slice
-    # requires monotonic ascending. The legacy cell 5 sorts on read (lines
-    # 70–73 of GR_model_performance_HM.ipynb); we mirror that here so bbox
-    # crops via slice() return the expected pixel band.
+    # Native ISIMIP3a files have descending latitude (90 → -90); xarray
+    # ``slice`` requires monotonic ascending, so sort on read.
     if "lat" in ds.coords:
         ds = ds.sortby("lat")
     if "lon" in ds.coords:
@@ -230,6 +211,7 @@ def load_native_w5e5(
 
 
 def cmip6_dir(variable: str, scenario: str, config: Config | None = None) -> Path:
+    """Return the directory holding CMIP6 NetCDFs for ``(variable, scenario)``."""
     config = config or Config.from_env()
     return config.data_root / CMIP6_DIR_TEMPLATE.format(
         variable=variable, scenario=scenario
@@ -282,8 +264,7 @@ def load_country_bboxes(config: Config | None = None) -> dict[str, dict]:
 def country_bbox(country: str, config: Config | None = None) -> dict[str, float]:
     """Return ``{lat_min, lat_max, lon_min, lon_max}`` for a country.
 
-    Matches by ``name``, ``alpha-2``, or ``alpha-3`` (case-insensitive), per the
-    legacy ``extract_subset`` lookup convention.
+    Matches by ``name``, ``alpha-2``, or ``alpha-3`` (case-insensitive).
     """
     needle = country.lower()
     for entry in load_country_bboxes(config=config).values():

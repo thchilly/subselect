@@ -1,42 +1,33 @@
 """Future-response change signals, spread quadrants, country-profile artefacts.
 
-Ports the paper-era spread pipeline from
-``legacy/cmip6-greece/GR_model_spread.ipynb`` and adds the
-country-profile / GWL-crossings layer the framework needs for the M9 viz
-helpers (per ``docs/refactor.md`` § Country-profile / context outputs).
-
 Three families of outputs:
 
-1. **Change signals** ``compute_change_signals(country, scenario)`` →
-   per-(model, variable, period) deltas of (2081–2100) − (1850–1899)
-   spatially-averaged means. Mirrors
-   ``results/<country>/assess_long_term_change_spread_<country>.xlsx``.
-   Regression-pinned.
-2. **Spread quadrants** ``compute_spread_quadrants(country, scenario)`` →
-   discrete labels (``warm_wet`` / ``warm_dry`` / ``cool_wet`` /
-   ``cool_dry``) per (model, period). Cutpoints are the seasonal medians
-   of Δtas and Δpr across the 35 models. Regression-pinned.
-3. **Country-profile artefacts** for the M9 figures:
-   ``compute_country_timeseries(country, variable, scenario)`` →
-   long-form (model, scenario, year, value) annual country-mean values
-   1950–2100; ``compute_gwl_crossing_years()`` →
-   (model, scenario, gwl_threshold, crossing_year) per the ETCCDI / IPCC
-   AR6 smoothed-global-mean-tas convention. The first lives at
-   ``cache/parquet/<country>/timeseries/...``, the second at
-   ``cache/parquet/_global/gwl_crossing_years.parquet``.
+1. **Change signals** :func:`compute_change_signals` → per-(model, variable,
+   period) deltas of (2081–2100) − (1850–1899) spatially-averaged means.
+2. **Spread quadrants** :func:`compute_spread_quadrants` → discrete labels
+   (``warm_wet`` / ``warm_dry`` / ``cool_wet`` / ``cool_dry``) per
+   (model, period). Cutpoints are the seasonal medians of Δtas and Δpr
+   across the 35 models.
+3. **Country-profile artefacts** for the country-profile figures:
+   :func:`compute_country_timeseries` → long-form
+   ``(model, scenario, year, value)`` annual country-mean values 1950–2100;
+   :func:`compute_gwl_crossing_years` →
+   ``(model, scenario, gwl_threshold, crossing_year)`` per the ETCCDI /
+   IPCC AR6 smoothed-global-mean-tas convention. Country-profile time
+   series live under ``cache/parquet/<country>/timeseries/``; GWL crossings
+   live under ``cache/parquet/_global/gwl_crossing_years.parquet``.
 
-Paper-era parity notes pinned by the regression contract:
+Conventions (regression-pinned to the published Greece paper):
 
-- Spread pipeline uses **box_offset=1.5°** (legacy default for
-  ``calculate_spatial_average``), inconsistent with the HPS pipeline's
-  1.0° offset. Documented and matched.
-- Pre-industrial window is **1850–1899 inclusive (50 years)**, not the
-  IPCC AR6 conventional 1850–1900 (51 years). Documented in
-  ``Config.pre_industrial`` and the regression test relies on this.
-- Spatial mean is taken **before** period aggregation (the legacy order:
-  groupby month → spatial mean → mean over months within season). When
-  bbox cropping leaves no NaNs, this is mathematically identical to the
-  alternative order; matches anyway for parity.
+- Spread pipeline uses ``box_offset=1.5°`` for the spatial average,
+  intentionally wider than the HPS pipeline's 1.0° offset.
+- Pre-industrial window is 1850–1899 inclusive (50 years), not the
+  IPCC AR6 conventional 1850–1900 (51 years). See
+  :attr:`Config.pre_industrial`.
+- Spatial mean is taken **before** period aggregation: groupby month →
+  spatial mean → mean over months within season. With no NaNs in the
+  cropped grid this equals the alternative order; ordering this way keeps
+  parity with the regression anchor.
 """
 
 from __future__ import annotations
@@ -199,12 +190,11 @@ def compute_change_signals(
     period ∈ {annual, DJF, MAM, JJA, SON}. Mirrors
     ``results/<country>/assess_long_term_change_spread_<country>.xlsx``.
 
-    Recipe (port of legacy GR_model_spread.ipynb):
+    Recipe:
 
     1. Per (variable, model): load the merged hist+ssp585 file (the same
        file covers both windows), drop ``height``/``file_qf``, normalise
-       time to first-of-month, crop to country with box_offset=1.5° (the
-       paper-era spread default).
+       time to first-of-month, crop to country with ``box_offset=1.5°``.
     2. For each window — long_term=(2081, 2100), pre_industrial=(1850, 1899) —
        slice, monthly-climatology, cos(lat)-weighted spatial mean, then
        per-period reduction.
@@ -294,7 +284,7 @@ def _quadrants_from_deltas(deltas: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Country-profile artefacts (M9 inputs)
+# Country-profile artefacts
 # ---------------------------------------------------------------------------
 
 
@@ -345,9 +335,9 @@ def compute_country_timeseries(
     """Annual country-mean time-series, all models × scenarios × years.
 
     Long-form output: one row per (model, scenario, year), columns
-    ``[model, scenario, year, value]``. Used by M9's
-    ``subselect.viz.country_profile`` for the change-band / spaghetti /
-    warming-level figures. Mirrors the cache convention in
+    ``[model, scenario, year, value]``. Used by
+    :mod:`subselect.viz.country_profile` for the change-band / spaghetti /
+    warming-level figures. Cache location:
     ``cache/parquet/<country>/timeseries/<variable>__<crop_method>.parquet``.
 
     Parallelized over (model, scenario) via ``joblib.Parallel``.
@@ -466,7 +456,7 @@ def compute_gwl_crossing_years(
 
 
 # ---------------------------------------------------------------------------
-# Phase 2 stub
+# Spread-coverage metric (placeholder)
 # ---------------------------------------------------------------------------
 
 
@@ -475,7 +465,14 @@ def spread_coverage(
     full_ensemble_deltas: pd.DataFrame,
     method: Literal["quantile", "convex_hull", "wasserstein"] = "quantile",
 ) -> float:
-    """Phase 2 stub. See docs/future_spread.md."""
+    """Spread-coverage metric for a candidate subset (placeholder).
+
+    Quantifies how well a chosen sub-ensemble preserves the full CMIP6
+    spread of projected end-of-century changes. The selectable methods
+    correspond to quantile coverage, convex-hull area, and Wasserstein
+    distance on the bivariate response distribution. Implementation lands
+    alongside the cost-function layer; see ``docs/cost_function.md``.
+    """
     raise NotImplementedError(
-        "spread_coverage is a Phase 2 deliverable; see docs/future_spread.md."
+        "spread_coverage is not yet implemented; see docs/cost_function.md."
     )

@@ -1,42 +1,34 @@
 """Country cropping and area weighting.
 
-`crop()` is the single entry point with four methods (per ``docs/refactor.md``
-§ Country cropping):
+:func:`crop` is the single entry point with four methods (per
+``docs/refactor.md`` § Country cropping):
 
-- ``bbox`` — paper-era setting and regression-test pin.
+- ``bbox`` — bounding-box rectangle from ``country_codes.json``.
 - ``shapefile_strict`` — pixel-centre-inside polygon (binary, NaN outside).
 - ``shapefile_lenient`` — any-touch (binary, NaN outside). **Framework default.**
 - ``shapefile_fractional`` — area-fraction-inside as a weight; data un-masked,
-  weight returned alongside. Opt-in for boundary-precision use cases. Computed
-  via per-cell shapely intersection so it works on regular and Gaussian
-  grids alike.
+  weight returned alongside. Opt-in for boundary-precision use cases.
+  Computed via per-cell shapely intersection so it works on regular and
+  Gaussian grids alike.
 
-`apply_weights(da, weight=None)` composes ``cos(lat)`` area weighting with the
-optional fractional weight so downstream metric code calls one helper for all
-four methods.
+:func:`apply_weights` composes ``cos(lat)`` area weighting with the optional
+fractional weight so downstream metric code calls one helper for all four
+methods.
 
-Internal order (post-M5 fix, see docs/refactor.md § Country cropping for the
-finding that motivated the change). For shapefile methods the mask is built
-against the **full** input grid first — uniform spacing is then guaranteed for
-``rasterio.features.geometry_mask`` (binary methods) and the per-cell shapely
-intersection works on Gaussian grids too (fractional method). The bbox
-pre-crop is applied to data and mask together afterwards, so it is a
-post-mask optimisation rather than a precondition. This matches the legacy
-prototype's *result* (the prototype bbox-cropped first, but only ever ran on
-Greece where the bbox-cropped grid had ≥2 cells per axis); it removes the
-degenerate-grid edge case the prototype's ordering had silently introduced.
+Internal order. For shapefile methods the mask is built against the **full**
+input grid first — uniform spacing is then guaranteed for
+``rasterio.features.geometry_mask`` (binary methods) and the per-cell
+shapely intersection works on Gaussian grids too (fractional method).
+A mask-aware bbox is applied to data and mask together afterwards, so it
+is a post-mask optimisation rather than a precondition. This avoids a
+degenerate-grid edge case where a small country on a coarse grid plus a
+fixed offset chops off cells the lenient mask correctly included.
 
-Methodology decision pending M5: the framework default is committed to
-``shapefile_lenient`` per ``docs/refactor.md`` line 161, but Athanasios reviews
-it visually over Greece + a few contrasting countries before the methods.tex
-entry lands.
-
-Known coarse-grid limitation (Phase 1+ work, not fixed here). Even after the
-M5 fix, a small country on a coarse grid (e.g. Cyprus on CanESM5 ≈ 2.8°) yields
-≈1 included cell — statistically meaningless for HPS / spread metrics. Future
-work is to emit a warning when the cropped grid has fewer than N cells
-(proposal: N=4 for binary methods, N=2 for fractional weighted means); see
-``docs/refactor.md`` § Country cropping → Known limitations.
+Known coarse-grid limitation. A small country on a coarse grid (e.g.
+Cyprus on CanESM5 ≈ 2.8°) yields ≈1 included cell — statistically
+meaningless for HPS / spread metrics. A future improvement is to emit a
+warning when the cropped grid has fewer than N cells (proposal: N=4 for
+binary methods, N=2 for fractional weighted means).
 """
 
 from __future__ import annotations
@@ -83,7 +75,7 @@ class CropResult(NamedTuple):
     - ``metadata`` includes ``crop_method``, the resolved bbox, and (for
       shapefile methods) the country polygon. The ``crop_method`` value
       lands in the SQLite cache catalog so different cropping choices do
-      not collide (M6).
+      not collide.
     """
 
     data: xr.DataArray
@@ -102,23 +94,16 @@ def crop(
 ) -> CropResult:
     """Crop a DataArray to a country using one of the four supported methods.
 
-    - ``bbox`` uses the country bounding box from ``country_codes.json`` plus
-      ``box_offset`` degrees on each side (paper-era behaviour preserved for
-      regression-test reproducibility).
-    - The shapefile methods build the mask against the *full* input grid and
-      then crop the data + mask to a **mask-aware** bbox: the smallest lat/lon
-      box enclosing all selected cells, expanded by one cell on each side for
-      visual context. The mask-aware crop cannot exclude any cell the mask
-      included — fixes a degenerate-grid edge case discovered in M5 review
-      where a small country on a coarse grid + the legacy ``country_bbox +
-      box_offset=1°`` chopped off cells the lenient mask had correctly
-      included (because 1° < ½ cell at ~2.8° native resolution).
+    - ``bbox`` uses the country bounding box from ``country_codes.json``
+      plus ``box_offset`` degrees on each side.
+    - The shapefile methods build the mask against the *full* input grid
+      and then crop the data + mask to a **mask-aware** bbox: the smallest
+      lat/lon box enclosing all selected cells, expanded by one cell on
+      each side for visual context. The mask-aware crop cannot exclude any
+      cell the mask included.
 
-    The ``box_offset`` parameter only affects the ``bbox`` method; shapefile
-    methods always pad by one cell on each side.
-
-    See the module docstring for the mask-first / bbox-after ordering and the
-    Phase 1+ Gaussian-grid limitation on ``shapefile_fractional``.
+    The ``box_offset`` parameter only affects the ``bbox`` method;
+    shapefile methods always pad by one cell on each side.
     """
     if method not in CROP_METHODS:
         raise ValueError(f"Unknown crop method {method!r}; expected one of {CROP_METHODS}")
@@ -189,8 +174,8 @@ def apply_weights(
 
 
 def _apply_bbox(da: xr.DataArray, bbox: dict[str, float], box_offset: float) -> xr.DataArray:
-    """Slice ``da`` to ``bbox`` ± offset, handling 0–360 vs −180/180 lon and
-    Prime-Meridian crossing per the legacy `extract_subset` algorithm.
+    """Slice ``da`` to ``bbox`` ± offset, handling 0–360 vs −180/180 lon
+    and Prime-Meridian crossing.
 
     Used for the ``bbox`` crop method only; shapefile methods route through
     :func:`_maskaware_bbox` and :func:`_slice_to_box` instead.
@@ -219,10 +204,7 @@ def _maskaware_bbox(
     """Smallest lat/lon bbox enclosing every True cell in ``selected``.
 
     The bbox is expanded by one full cell on each side for visual context.
-    By construction it cannot exclude any cell the mask included — fixes the
-    M5-discovered failure where ``country_bbox + box_offset=1°`` was less
-    than half a coarse-grid cell and chopped off cells the lenient mask had
-    correctly included.
+    By construction it cannot exclude any cell the mask included.
 
     If ``selected`` is empty (no cell overlaps the polygon), falls back to
     the country bbox so callers still get a coherent (all-NaN) slice rather

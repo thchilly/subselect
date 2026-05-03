@@ -178,7 +178,7 @@ def _global_catalog_dep(config: Config) -> list[Path]:
 def warming_levels(
     annual_temperature: pd.DataFrame, cache: Cache,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-    """Crossing years per (model, scenario) and per-SSP medians (cell 15)."""
+    """Crossing years per (model, scenario) and per-SSP medians."""
     deps_proxy = _annual_ts_proxy_path(cache, "tas")
     if cache.is_fresh("warming_levels", [deps_proxy]) and cache.is_fresh(
         "warming_level_medians", [deps_proxy]
@@ -213,7 +213,7 @@ def tas_future_anomalies(
     rp_baseline: pd.Series,
     cache: Cache,
 ) -> dict[str, pd.DataFrame]:
-    """Per-SSP statistics over fixed future periods (cell 19)."""
+    """Per-SSP statistics over fixed future periods."""
     proxy = _annual_ts_proxy_path(cache, "tas")
     key = "future_anomalies__tas"
     if cache.is_fresh(key, [proxy]):
@@ -230,7 +230,7 @@ def pr_future_percent_anomalies(
     warming_levels_all_models: pd.DataFrame,
     cache: Cache,
 ) -> dict[str, pd.DataFrame]:
-    """Per-SSP percent-change statistics for precipitation (cell 21)."""
+    """Per-SSP percent-change statistics for precipitation."""
     proxy_pr = _annual_ts_proxy_path(cache, "pr")
     proxy_tas = _annual_ts_proxy_path(cache, "tas")
     key = "future_anomalies__pr_percent"
@@ -522,6 +522,15 @@ def _reference_inputs(variable: str, config: Config) -> list[Path]:
 def composite_hps(
     country: str, perf_metrics: dict[str, pd.DataFrame], config: Config, cache: Cache,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Composite HPS table and its full ranked variant for one country.
+
+    Returns ``(hps, full)`` where ``hps`` carries one ``<period>_HMperf``
+    column per period in ``annual / DJF / MAM / JJA / SON`` and ``full``
+    additionally exposes per-period rank, min-max-normalised TSS and
+    bias-score, and the raw composite bias-score. Both tables are
+    cached and only recomputed when the underlying CMIP6 / W5E5 inputs
+    or the global catalog have changed.
+    """
     from subselect.performance import (
         EPS_HPS, PERIODS, compute_hps, minmax_normalize,
     )
@@ -566,6 +575,12 @@ def composite_hps(
 
 
 def observed_std_dev(country: str, config: Config, cache: Cache) -> pd.DataFrame:
+    """σ_obs (per variable, per period) for the country, on the single grid.
+
+    Used as the σ in the TSS denominator. One row per variable, one column
+    per period (``annual / DJF / MAM / JJA / SON``). Cached and refreshed
+    when the W5E5 inputs change.
+    """
     from subselect.performance import PERIODS, _compute_obs_std_per_period
 
     deps = (
@@ -749,7 +764,7 @@ def spread(
 
 
 # ---------------------------------------------------------------------------
-# Bias maps (M9.2)
+# Bias maps
 # ---------------------------------------------------------------------------
 
 def bias_maps(
@@ -833,17 +848,17 @@ def bias_maps(
 
 
 # ---------------------------------------------------------------------------
-# Global comparison artefacts (paper-era xlsx — read-only for now)
+# Global comparison artefacts (read-only; precomputed xlsx)
 # ---------------------------------------------------------------------------
 
 def global_comparison(config: Config) -> dict[str, dict[str, pd.DataFrame] | pd.DataFrame]:
-    """Read the paper-era global-mean comparison artefacts.
+    """Read the precomputed global-mean comparison artefacts.
 
-    The country-profile figures compare the country's projections to the
-    global ensemble. The global tables are paper-era and live under
-    ``results/global/``; we read them directly. If a future framework
-    iteration computes the global side from raw CMIP6, this function becomes
-    a builder; for now it is a passthrough loader.
+    The country-profile figures compare a country's projections to the
+    global ensemble. The global tables live under ``results/global/`` and
+    are read directly. If a future iteration computes the global side from
+    raw CMIP6, this function becomes a builder; for now it is a passthrough
+    loader.
     """
     g = config.results_root / "global"
     return {
@@ -916,6 +931,21 @@ def compute(
         climatologies are already cached, expensive on a cold start).
     include_seasonal_bias
         Whether bias maps include the four seasons in addition to ``annual``.
+
+    Returns
+    -------
+    SubselectState
+        Populated typed state. Hand it to :func:`subselect.render.render`
+        to write the figure set under ``results/<country>/figures/``.
+
+    Examples
+    --------
+    .. code:: python
+
+        from subselect.compute import compute
+        from subselect.render import render
+        state = compute("greece")
+        render(state)
     """
     config = config or Config.from_env()
     cache = Cache(country, config.cache_root)

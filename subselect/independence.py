@@ -1,6 +1,6 @@
-"""Model independence — Phase 1 stub.
+"""Model independence (placeholder).
 
-Phase 0 leaves this empty. Phase 1 implements two methods: feature-space k-means
-on regional climatology, and pairwise-RMSE genealogy clustering. See
-docs/model_similarity.md for the design.
+Will host two complementary methods for assessing CMIP6 model similarity:
+feature-space k-means on regional climatology, and pairwise-RMSE genealogy
+clustering. See ``docs/model_similarity.md`` for the design.
 """

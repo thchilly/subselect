@@ -92,6 +92,32 @@ def _load_state_from_cache(country: str, config: Config) -> SubselectState:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point: ``python -m subselect <country> [flags]``.
+
+    Runs the L1 compute pipeline (populating the country cache, and the
+    global cache on first use) followed by the L2 figure render. With
+    ``--global-only``, builds the global cache without rendering for any
+    country.
+
+    Parameters
+    ----------
+    argv
+        Argument vector; defaults to ``sys.argv[1:]`` when ``None``.
+
+    Returns
+    -------
+    int
+        Process exit code (``0`` on success, ``2`` on missing-country
+        misuse).
+
+    Examples
+    --------
+    .. code:: bash
+
+        python -m subselect greece
+        python -m subselect sweden --no-bias-maps
+        python -m subselect --global-only
+    """
     args = _parse_args(argv)
     config = Config.from_env()
 

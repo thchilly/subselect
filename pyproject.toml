@@ -4,23 +4,35 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subselect"
-version = "0.1.0.dev0"
-description = "Country-scale CMIP6 sub-ensemble selection framework"
-readme = "CLAUDE.md"
+version = "0.1.0"
+description = "Pick a small, representative CMIP6 sub-ensemble for country-scale climate impact assessments."
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Athanasios Tsilimigkras" },
     { name = "Aristeidis Koutroulis" },
 ]
-keywords = ["cmip6", "climate", "model-selection", "subselection", "downscaling"]
+keywords = [
+    "cmip6",
+    "climate",
+    "climate-impact-assessment",
+    "model-selection",
+    "sub-ensemble",
+    "downscaling",
+    "cordex",
+]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Hydrology",
+    "Topic :: Scientific/Engineering :: Visualization",
 ]
 
 # Loose lower bounds. The authoritative pin source is environment.yml (conda
@@ -54,7 +66,10 @@ dev = [
 ]
 
 [project.urls]
+"Homepage" = "https://github.com/thchilly/subselect"
 "Source" = "https://github.com/thchilly/subselect"
+"Documentation" = "https://github.com/thchilly/subselect#readme"
+"Issue Tracker" = "https://github.com/thchilly/subselect/issues"
 
 [tool.setuptools.packages.find]
 include = ["subselect*"]

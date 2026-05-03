@@ -1,15 +1,8 @@
-"""Taylor diagram (Taylor, 2001) — verbatim port of Yannick Copin's class.
+"""Taylor diagram (Taylor, 2001).
 
-Source: ``legacy/cmip6-greece/TaylorDiagram.py`` (placed in the public domain
-per the file header). The ``legacy/climpact/TaylorDiagram.py`` copy is
-byte-identical to this one and is dropped. ``legacy/climpact/TaylorDiagramCRMSE.py``
-is left in legacy as deprecated (its declared ``crmse`` argument is never
-consumed).
-
-This file is a verbatim copy of the legacy module. The only modifications are:
-- the module-docstring above (this paragraph),
-- removing ``test1()``, ``test2()`` and the ``if __name__ == '__main__'``
-  block (they are interactive demos that have no place in the package).
+Polar-axis class from Yannick Copin's public-domain implementation, used by
+:mod:`subselect.viz.performance_figs.fig_composite_taylor` to render each
+panel of the composite Taylor figure.
 """
 
 #!/usr/bin/env python
@@ -127,8 +120,7 @@ class TaylorDiagram(object):
         return l
 
     def add_grid(self, *args, **kwargs):
-        """Add a grid."""
-
+        """Add a grid to the diagram (forwards to the underlying axis)."""
         self._ax.grid(*args, **kwargs)
 
     def add_contours(self, levels=5, **kwargs):

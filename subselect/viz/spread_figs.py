@@ -9,7 +9,7 @@ metadata) and returns a :class:`matplotlib.figure.Figure`. Called from
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm  # noqa: F401  (kept verbatim)
+import matplotlib.font_manager as fm  # noqa: F401
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap, Normalize
@@ -20,10 +20,10 @@ CATEGORY = "spread"
 
 
 # --------------------------------------------------------------------------
-# Cell 13 — Annual future spread, rev12
+# Annual future spread
 # --------------------------------------------------------------------------
 
-def fig_annual_spread_rev12(
+def fig_annual_spread(
     ranked_full: pd.DataFrame,
     long_pi_change_df: pd.DataFrame,
     long_term_df: pd.DataFrame,
@@ -31,6 +31,30 @@ def fig_annual_spread_rev12(
     model_ids: dict,
     country: str = "greece",
 ) -> plt.Figure:
+    """Annual end-of-century spread quadrant scatter.
+
+    Plots Δtas against Δpr (2081–2100 vs 1850–1899 under SSP5-8.5) for the
+    full 35-model ensemble, with marker colour encoding HPS rank, and
+    Euro-CORDEX-bounded models tagged for context.
+
+    Parameters
+    ----------
+    ranked_full
+        HPS ranking table (provides the ``annual_HMperf`` colour metric).
+    long_pi_change_df, long_term_df
+        Per-(model, variable) end-of-century and long-term spatial-mean
+        tables consumed for the Δ axes.
+    cmip6_models
+        Model metadata table (institution, family, Euro-CORDEX flag).
+    model_ids
+        ``{model_name: integer_id}`` mapping.
+    country
+        Country name (used in figure title only).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
     # --- CONFIGURATION START ---
 
     # 1. SWITCH: Turn Euro-CORDEX labels ON or OFF
@@ -285,17 +309,17 @@ def fig_annual_spread_rev12(
         if text.get_text() in euro_cordex_models:
             text.set_weight('bold')
 
-    # NB: legacy cell 13 calls plt.tight_layout() AFTER save_figure(...), so the
-    # paper-era PNG is the pre-tight_layout figure. Returning fig here without
-    # the tight_layout call matches that behaviour.
+    # The figure is intentionally returned without ``plt.tight_layout()``;
+    # the published Greece figure was generated pre-tight-layout and the
+    # rendered output is matched here for parity.
     return fig
 
 
 # --------------------------------------------------------------------------
-# Cell 21 — Seasonal future spread, perSeasonBars + named (rev1)
+# Seasonal future spread (per-season bars, named)
 # --------------------------------------------------------------------------
 
-def fig_seasonal_spread_perSeasonBars_right_named_rev1(
+def fig_seasonal_spread(
     ranked_full: pd.DataFrame,
     long_pi_change_df: pd.DataFrame,
     long_term_df: pd.DataFrame,
@@ -303,6 +327,28 @@ def fig_seasonal_spread_perSeasonBars_right_named_rev1(
     model_ids: dict,
     country: str = "greece",
 ) -> plt.Figure:
+    """Seasonal end-of-century spread, four DJF/MAM/JJA/SON panels.
+
+    Same logic as :func:`fig_annual_spread` but split per season, with
+    model labels named in a side panel for readability.
+
+    Parameters
+    ----------
+    ranked_full
+        HPS ranking table.
+    long_pi_change_df, long_term_df
+        Per-(model, variable, season) end-of-century deltas.
+    cmip6_models
+        Model metadata table.
+    model_ids
+        ``{model_name: integer_id}`` mapping.
+    country
+        Country name (figure title only).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
     # ---------- helpers ----------
     def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
         base = plt.get_cmap(cmap)

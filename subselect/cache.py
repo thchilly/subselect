@@ -81,6 +81,7 @@ class Cache:
         return max(mtimes) if mtimes else 0.0
 
     def has(self, key: str) -> bool:
+        """Return ``True`` if the catalog records an artefact for ``key``."""
         return key in self._catalog
 
     def is_fresh(self, key: str, deps: Iterable[Path]) -> bool:
@@ -97,6 +98,7 @@ class Cache:
         return current <= recorded + 1e-6  # tolerate fp jitter
 
     def invalidate(self, key: str) -> None:
+        """Drop ``key`` from the catalog and remove its on-disk artefact."""
         entry = self._catalog.pop(key, None)
         if entry is None:
             self._save_catalog()
@@ -111,6 +113,7 @@ class Cache:
         self._save_catalog()
 
     def clear(self) -> None:
+        """Invalidate every artefact in the catalog and prune empty subdirs."""
         for key in list(self._catalog):
             self.invalidate(key)
         # remove any orphaned directories
@@ -246,6 +249,12 @@ class Cache:
     # -- load -----------------------------------------------------------
 
     def load(self, key: str) -> Any:
+        """Load and return the artefact stored under ``key``.
+
+        Raises :class:`KeyError` if the artefact is not in the catalog. The
+        return type depends on the recorded ``kind`` (DataFrame, Series,
+        Dataset, DataArray, or a nested dict of these).
+        """
         if key not in self._catalog:
             raise KeyError(f"{key!r} not in cache catalog")
         entry = self._catalog[key]

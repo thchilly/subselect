@@ -26,7 +26,7 @@ CATEGORY = "performance"
 
 
 # --------------------------------------------------------------------------
-# Shared helpers: data-driven axis limits for the seasonal_perf_revised
+# Shared helpers: data-driven axis limits for the seasonal-performance
 # scatter panels (DJF/MAM/JJA/SON × |bias| × annual correlation).
 # --------------------------------------------------------------------------
 
@@ -92,7 +92,7 @@ def _robust_bound(
     raise ValueError(f"side must be 'upper' or 'lower', got {side!r}")
 
 
-def _seasonal_perf_revised_limits(
+def _seasonal_performance_limits(
     perf_metrics_df: pd.DataFrame,
     *,
     bias_cols: tuple[str, ...] = ("DJF_bias", "MAM_bias", "JJA_bias", "SON_bias"),
@@ -134,15 +134,32 @@ def _seasonal_perf_revised_limits(
 
 
 # --------------------------------------------------------------------------
-# Cell 13 — HPS rank plots: Annual (full-width) + 2×2 seasonal panels
+# HPS rank plots: Annual (full-width) + 2×2 seasonal panels
 # --------------------------------------------------------------------------
 
 def fig_hps_rankings_annual_and_seasons(
     ranked_full: pd.DataFrame,
     model_ids: dict,
 ) -> plt.Figure:
-    # HPS rank plots: Annual (full-width) + 2×2 seasonal panels
+    """Five-panel HPS ranking figure (annual full-width + 2×2 seasonal grid).
 
+    Plots TSS, BVS, and the harmonic-mean HPS for every model, sorted
+    descending by HPS, with the annual ranking spanning the top row at full
+    figure width and the four seasonal rankings (DJF / MAM / JJA / SON)
+    laid out below in a 2×2 grid using compact ID-only labels.
+
+    Parameters
+    ----------
+    ranked_full
+        Per-model HPS table with ``<period>_TSS_mm``, ``<period>_bias_score_mm``,
+        and ``<period>_HMperf`` columns for every period.
+    model_ids
+        ``{model_name: integer_id}`` mapping used for marker labels.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
     # -------- configuration --------
     SEASONS = ['DJF', 'MAM', 'JJA', 'SON']
     ANNUAL  = 'annual'
@@ -241,21 +258,108 @@ def fig_hps_rankings_annual_and_seasons(
 
 
 # --------------------------------------------------------------------------
-# Cell 25 — Seasonal performance (revised) — TAS
+# Seasonal performance: per-variable annual cycle + four DJF/MAM/JJA/SON
+# scatter panels (|bias| × annual correlation), coloured by the chosen
+# annual metric. tas/pr/psl share this layout; tasmax has its own variant
+# below because it carries extra missing-model bookkeeping.
 # --------------------------------------------------------------------------
 
-def fig_seasonal_perf_revised_tas(
+_SEASONAL_PERF_CONFIG = {
+    "tas": dict(
+        cmap_name="autumn_r",
+        title="Annual Cycle of Temperature",
+        ylabel="Temperature (°C)",
+        xlabel="Absolute Bias",
+        obs_legend="Observed (GSWP3-W5E5)",
+        outlier_circle_size=350,
+        bias_decimals=1,
+        check_bias_lower_bound=False,
+        forced_outlier_id=None,
+        annot_offset_right=(-28, 22),
+        annot_offset_left=(10, 17),
+    ),
+    "pr": dict(
+        cmap_name="YlGnBu",
+        title="Annual Cycle of Precipitation",
+        ylabel="Precipitation (mm/day)",
+        xlabel="Bias",
+        obs_legend="Observed (GSWP3-W5E5)",
+        outlier_circle_size=350,
+        bias_decimals=2,
+        check_bias_lower_bound=True,
+        forced_outlier_id=26,
+        annot_offset_right=(-42, 32),
+        annot_offset_left=(8, 15.5),
+    ),
+    "psl": dict(
+        cmap_name="winter_r",
+        title="Annual Cycle of Sea-Level Pressure",
+        ylabel="Sea-level pressure (hPa)",
+        xlabel="Bias",
+        obs_legend="Observed (W5E5)",
+        outlier_circle_size=380,
+        bias_decimals=2,
+        check_bias_lower_bound=True,
+        forced_outlier_id=None,
+        annot_offset_right=(-42, 9),
+        annot_offset_left=(8, 15.5),
+    ),
+}
+
+
+def fig_seasonal_performance(
+    *,
+    variable: str,
     ranked_full: pd.DataFrame,
-    tas_all_perf_metrics: pd.DataFrame,
-    tas_cmip6_mon_means: pd.DataFrame,
-    tas_observed_mon_means: pd.DataFrame,
+    all_perf_metrics: pd.DataFrame,
+    cmip6_mon_means: pd.DataFrame,
+    observed_mon_means: pd.DataFrame,
     model_ids: dict,
 ) -> plt.Figure:
-    # --- 1. CONFIGURATION & IMPORTS ---
-    variable = 'tas'
-    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(tas_all_perf_metrics)
+    """Render the seasonal-performance figure for ``tas``, ``pr``, or ``psl``.
 
-    # Try to import adjustText for smart label placement
+    The figure has a wide top panel with each model's annual cycle of
+    monthly means against the observed reference, and four scatter panels
+    (DJF, MAM, JJA, SON) of |bias| against annual correlation, with
+    out-of-range models docked at the panel edge and annotated with their
+    true coordinates. Colour encodes the annual RMSE of each model.
+
+    Parameters
+    ----------
+    variable
+        One of ``"tas"``, ``"pr"``, ``"psl"``. Selects the variable-specific
+        cmap, axis labels, observation legend, and outlier-handling tweaks.
+    ranked_full
+        HPS ranking table (``annual_HMperf`` and ``<season>_HMperf`` columns).
+    all_perf_metrics
+        Per-model performance metrics for the chosen variable. Must include
+        ``annual_rmse``, ``annual_corr``, and ``<season>_bias`` for the four
+        seasons.
+    cmip6_mon_means
+        Monthly means per model (one column per model, rows indexed 1–12).
+    observed_mon_means
+        Monthly means of the observed reference (must contain a ``variable``-
+        named column).
+    model_ids
+        Mapping ``{model_name: integer_id}`` used for marker labels.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The rendered figure.
+
+    Raises
+    ------
+    ValueError
+        If ``variable`` is not one of the supported keys.
+    """
+    if variable not in _SEASONAL_PERF_CONFIG:
+        raise ValueError(
+            f"variable must be one of {sorted(_SEASONAL_PERF_CONFIG)!r}, got {variable!r}"
+        )
+    cfg = _SEASONAL_PERF_CONFIG[variable]
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_performance_limits(all_perf_metrics)
+
     try:
         from adjustText import adjust_text
         HAS_ADJUST_TEXT = True
@@ -263,30 +367,10 @@ def fig_seasonal_perf_revised_tas(
         HAS_ADJUST_TEXT = False
         print("Note: 'adjustText' not found. Labels may overlap slightly.")
 
-    # --- 2. DATA PREPARATION ---
-    # Choose metric used to color models & the colorbar label
-    color_metric = 'rmse'   # 'rmse' | 'corr' | 'bias' | 'tss' | 'hm'
-    cmap = mpl.colormaps['autumn_r']
+    cmap = mpl.colormaps[cfg["cmap_name"]]
+    series = all_perf_metrics["annual_rmse"]
+    cbar_label = "Annual RMSE"
 
-    if color_metric == 'rmse':
-        series = tas_all_perf_metrics['annual_rmse']
-        cbar_label = 'Annual RMSE'
-    elif color_metric == 'corr':
-        series = tas_all_perf_metrics['annual_corr']
-        cbar_label = 'Annual Correlation'
-    elif color_metric == 'bias':
-        series = tas_all_perf_metrics['annual_bias'].abs()  # use |bias|
-        cbar_label = 'Annual |Bias|'
-    elif color_metric == 'tss':
-        series = tas_all_perf_metrics['annual_tss']
-        cbar_label = 'Annual TSS'
-    elif color_metric == 'hm':
-        series = ranked_full['annual_HMperf']
-        cbar_label = 'Annual HM performance (composite)'
-    else:
-        raise ValueError("color_metric must be one of: 'rmse','corr','bias','tss','hm'")
-
-    # Normalize on available values; gray if a model is missing from the series
     valid = series.dropna()
     norm = Normalize(vmin=valid.min(), vmax=valid.max())
 
@@ -294,646 +378,179 @@ def fig_seasonal_perf_revised_tas(
         val = series.get(model, np.nan)
         return cmap(norm(val)) if np.isfinite(val) else (0.85, 0.85, 0.85, 1.0)
 
-    model_colors = {m: color_for(m) for m in tas_cmip6_mon_means.columns}
+    model_colors = {m: color_for(m) for m in cmip6_mon_means.columns}
 
+    forced_id = cfg["forced_outlier_id"]
+    forced_outlier_name = None
+    if forced_id is not None:
+        for name, mid in model_ids.items():
+            if mid == forced_id:
+                forced_outlier_name = name
+                break
 
-    # --- 3. FIGURE LAYOUT ---
     fig = plt.figure(figsize=(10, 11))
     gs = gridspec.GridSpec(
         3, 2, figure=fig,
-        height_ratios=[1.4, 1.0, 1.0],   # main row taller, seasonal rows shorter
-        hspace=0.25, wspace=0.2
+        height_ratios=[1.4, 1.0, 1.0],
+        hspace=0.25, wspace=0.2,
     )
-
-    # Big panel spanning first row
     ax_main = fig.add_subplot(gs[0, :])
-
-    # Four seasonal panels
     ax_djf = fig.add_subplot(gs[1, 0])
     ax_mam = fig.add_subplot(gs[1, 1])
     ax_jja = fig.add_subplot(gs[2, 0])
     ax_son = fig.add_subplot(gs[2, 1])
-
-    # Make seasonal axes ~3:2 (width:height)
     for _ax in (ax_djf, ax_mam, ax_jja, ax_son):
         if hasattr(_ax, "set_box_aspect"):
-            _ax.set_box_aspect(9/14)
+            _ax.set_box_aspect(9 / 14)
 
-
-    # --- 4. MAIN PLOT (Annual Cycle Lines) ---
-    for col in tas_cmip6_mon_means.columns:
-        color = model_colors.get(col, '0.6')
+    for col in cmip6_mon_means.columns:
+        color = model_colors.get(col, "0.6")
         ax_main.plot(
-            tas_cmip6_mon_means.index,
-            tas_cmip6_mon_means[col].values,
+            cmip6_mon_means.index,
+            cmip6_mon_means[col].values,
             label=f"({model_ids[col]}) {col}",
             linewidth=0.8,
             color=color,
         )
-
-    # Observed
     ax_main.plot(
-        tas_observed_mon_means.index,
-        tas_observed_mon_means['tas'].values,
-        label='Observed',
-        color='black',
+        observed_mon_means.index,
+        observed_mon_means[variable].values,
+        label="Observed",
+        color="black",
         linewidth=2.5,
-        zorder=500
+        zorder=500,
     )
-
-    ax_main.set_title('Annual Cycle of Temperature')
-    ax_main.set_ylabel('Temperature (°C)')
+    ax_main.set_title(cfg["title"])
+    ax_main.set_ylabel(cfg["ylabel"])
     ax_main.set_xlim(1, 12)
-    months_ticks = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    months_ticks = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     ax_main.set_xticks(np.arange(1, 13))
     ax_main.set_xticklabels(months_ticks)
 
+    bias_decimals = cfg["bias_decimals"]
+    bias_fmt = f"B:{{:.{bias_decimals}f}}"
+    check_bias_lower = cfg["check_bias_lower_bound"]
+    circle_size = cfg["outlier_circle_size"]
+    offset_right = cfg["annot_offset_right"]
+    offset_left = cfg["annot_offset_left"]
 
-    # --- 5. SEASONAL SCATTER PANELS (Fixed Outlier Style) ---
-    def scatter_panel_optimized(ax, xcol, title, xlabel):
+    def scatter_panel(ax, xcol, title, xlabel):
         texts = []
-
-        # Apply strict zoom limits
         ax.set_xlim(LIMIT_BIAS)
         ax.set_ylim(LIMIT_CORR)
+        ax.grid(True, linestyle="--", alpha=0.3)
+        ax.axvline(x=0.0, color="black", linestyle=":", linewidth=1)
 
-        # Grid for readability
-        ax.grid(True, linestyle='--', alpha=0.3)
-        ax.axvline(x=0, color='black', linestyle=':', linewidth=1)
-
-        for model in tas_all_perf_metrics.index:
-            true_x = tas_all_perf_metrics.loc[model, xcol]
-            true_y = tas_all_perf_metrics.loc[model, 'annual_corr']
+        for model in all_perf_metrics.index:
+            true_x = all_perf_metrics.loc[model, xcol]
+            true_y = all_perf_metrics.loc[model, "annual_corr"]
             mid = str(model_ids[model])
-            color = model_colors.get(model, '0.6')
+            color = model_colors.get(model, "0.6")
 
-            # Check if Outlier (outside the zoom box)
-            is_x_out = true_x > LIMIT_BIAS[1]
-            is_y_out = true_y < LIMIT_CORR[0]
-
-            if is_x_out or is_y_out:
-                # --- OUTLIER HANDLING ---
-                # 1. Dock coordinates to the edge
-                plot_x = min(true_x, LIMIT_BIAS[1])
-                plot_y = max(true_y, LIMIT_CORR[0])
-
-                # 2. Plot the "Container" Circle (White background with black edge)
-                ax.scatter(plot_x, plot_y, color="white", s=350, edgecolors='k', linewidth=1, zorder=10, )
-
-                # 3. Plot the ID Number INSIDE the circle
-                # **CRITICAL FIX**: Use the model's color + black outline (same as main models)
-                t_out = ax.text(plot_x, plot_y, mid, fontsize=9,
-                                color=color,  # Use model color, NOT black
-                                ha='center', va='center', fontweight='bold', zorder=11)
-
-                # Add the consistent black outline
-                t_out.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
-
-                # 4. Annotation Label (Small box with values)
-                annot_text = "("
-                if is_x_out: annot_text += f"B:{true_x:.1f}"
-                if is_x_out and is_y_out: annot_text += ", "
-                if is_y_out: annot_text += f"r:{true_y:.2f}"
-                annot_text += ")"
-
-                xytext_offset = (-28, 22) if is_x_out else (10, 17)
-
-                ax.annotate(annot_text, xy=(plot_x, plot_y), xytext=xytext_offset,
-                            textcoords='offset points', fontsize=7.5, color='black',
-                            arrowprops=dict(arrowstyle="->", color='black', lw=0.6),
-                            bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.8, ec='none'))
-
+            if check_bias_lower:
+                is_x_out = (true_x < LIMIT_BIAS[0]) or (true_x > LIMIT_BIAS[1])
             else:
-                # --- MAIN CLUSTER (Text ID Markers) ---
-                # Invisible dot for anchor
-                ax.scatter(true_x, true_y, s=1, color=color, alpha=0)
-
-                # Text ID with Outline
-                t = ax.text(true_x, true_y, mid, fontsize=9,
-                            color=color, ha='center', va='center', fontweight='bold')
-                # Black outline around colored text
-                t.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
-                texts.append(t)
-
-        # Apply Repulsion (adjustText)
-        if HAS_ADJUST_TEXT and texts:
-            adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle='-', color='dimgray', lw=0.5), expand_points=(1.2, 1.2))
-
-        ax.set_title(title)
-        if xlabel: ax.set_xlabel(xlabel)
-
-    # Execute the 4 panels
-    ax_djf.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_djf, 'DJF_bias', 'DJF', '')
-
-    scatter_panel_optimized(ax_mam, 'MAM_bias', 'MAM', '')
-
-    ax_jja.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_jja, 'JJA_bias', 'JJA', 'Absolute Bias')
-
-    scatter_panel_optimized(ax_son, 'SON_bias', 'SON', 'Absolute Bias')
-
-
-    # --- 6. LEGEND & COLORBAR ---
-    # Create Legend Handles
-    legend_handles = [
-        Line2D([0], [0], color=model_colors.get(col, '0.6'), marker='o', linestyle='',
-               markersize=8, label=f"({model_ids[col]}) {col}")
-        for col in tas_cmip6_mon_means.columns
-    ]
-    legend_handles.insert(0, Line2D([0], [0], color='black', marker='o', linestyle='',
-                                    markersize=6, label='Observed (GSWP3-W5E5)'))
-
-    # Place Legend
-    ax_main.legend(handles=legend_handles,
-                   bbox_to_anchor=(1.02, 1.02), # Anchored top-left corner
-                   loc='upper left',
-                   borderaxespad=0.,
-                   frameon=False,
-                   handlelength=0.5,
-                   fontsize=8.5,
-                   labelspacing=0.999) # Adjusted to fill vertical space
-
-    # Bottom margins for colorbar
-    fig.subplots_adjust(bottom=0.12)
-
-    # Colorbar
-    cax = fig.add_axes([0.12, 0.06, 0.783, 0.015])
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, cax=cax, orientation='horizontal')
-    cbar.set_label(cbar_label)
-
-    return fig
-
-
-# --------------------------------------------------------------------------
-# Cell 26 — Seasonal performance (revised) — PR
-# --------------------------------------------------------------------------
-
-def fig_seasonal_perf_revised_pr(
-    ranked_full: pd.DataFrame,
-    pr_all_perf_metrics: pd.DataFrame,
-    pr_cmip6_mon_means: pd.DataFrame,
-    pr_observed_mon_means: pd.DataFrame,
-    model_ids: dict,
-) -> plt.Figure:
-    # --- 1. CONFIGURATION ---
-    variable = 'pr'
-
-    # Zoom limits for PR (given by you)
-    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(pr_all_perf_metrics)
-
-    # Only model 26 is an outlier (given by you)
-    OUTLIER_MODEL_ID = 26
-
-    # Try to import adjustText for smart label placement
-    try:
-        from adjustText import adjust_text
-        HAS_ADJUST_TEXT = True
-    except ImportError:
-        HAS_ADJUST_TEXT = False
-        print("Note: 'adjustText' not found. Labels may overlap slightly.")
-
-    # --- 2. DATA PREPARATION ---
-    color_metric = 'rmse'   # 'rmse' | 'corr' | 'bias' | 'tss' | 'hm'
-    cmap = mpl.colormaps['YlGnBu']  # pr-specific palette
-
-    if color_metric == 'rmse':
-        series = pr_all_perf_metrics['annual_rmse']
-        cbar_label = 'Annual RMSE'
-    elif color_metric == 'corr':
-        series = pr_all_perf_metrics['annual_corr']
-        cbar_label = 'Annual Correlation'
-    elif color_metric == 'bias':
-        series = pr_all_perf_metrics['annual_bias'].abs()
-        cbar_label = 'Annual |Bias|'
-    elif color_metric == 'tss':
-        series = pr_all_perf_metrics['annual_tss']
-        cbar_label = 'Annual TSS'
-    elif color_metric == 'hm':
-        series = ranked_full['annual_HMperf']
-        cbar_label = 'Annual HM performance (composite)'
-    else:
-        raise ValueError("color_metric must be one of: 'rmse','corr','bias','tss','hm'")
-
-    valid = series.dropna()
-    norm = Normalize(vmin=valid.min(), vmax=valid.max())
-
-    def color_for(model):
-        val = series.get(model, np.nan)
-        return cmap(norm(val)) if np.isfinite(val) else (0.85, 0.85, 0.85, 1.0)
-
-    model_colors = {m: color_for(m) for m in pr_cmip6_mon_means.columns}
-
-    # Helper: find model name from a model ID number (e.g., 26)
-    def model_name_from_id(target_id):
-        for name, mid in model_ids.items():
-            if mid == target_id:
-                return name
-        return None
-
-    OUTLIER_MODEL_NAME = model_name_from_id(OUTLIER_MODEL_ID)
-
-    # --- 3. FIGURE LAYOUT ---
-    fig = plt.figure(figsize=(10, 11))
-    gs = gridspec.GridSpec(
-        3, 2, figure=fig,
-        height_ratios=[1.4, 1.0, 1.0],
-        hspace=0.25, wspace=0.2
-    )
-
-    ax_main = fig.add_subplot(gs[0, :])
-    ax_djf  = fig.add_subplot(gs[1, 0])
-    ax_mam  = fig.add_subplot(gs[1, 1])
-    ax_jja  = fig.add_subplot(gs[2, 0])
-    ax_son  = fig.add_subplot(gs[2, 1])
-
-    for _ax in (ax_djf, ax_mam, ax_jja, ax_son):
-        if hasattr(_ax, "set_box_aspect"):
-            _ax.set_box_aspect(9/14)
-
-    # --- 4. MAIN PLOT (Annual Cycle Lines) ---
-    for col in pr_cmip6_mon_means.columns:
-        color = model_colors.get(col, '0.6')
-        ax_main.plot(
-            pr_cmip6_mon_means.index,
-            pr_cmip6_mon_means[col].values,
-            label=f"({model_ids[col]}) {col}",
-            linewidth=0.8,
-            color=color,
-        )
-
-    ax_main.plot(
-        pr_observed_mon_means.index,
-        pr_observed_mon_means['pr'].values,
-        label='Observed',
-        color='black',
-        linewidth=2.5,
-        zorder=500
-    )
-
-    ax_main.set_title('Annual Cycle of Precipitation')
-    ax_main.set_ylabel('Precipitation (mm/day)')
-    ax_main.set_xlim(1, 12)
-    months_ticks = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    ax_main.set_xticks(np.arange(1, 13))
-    ax_main.set_xticklabels(months_ticks)
-
-    # --- 5. SEASONAL SCATTER PANELS (Text markers + outlier docking) ---
-    def scatter_panel_optimized(ax, xcol, title, xlabel):
-        texts = []
-
-        ax.set_xlim(LIMIT_BIAS)
-        ax.set_ylim(LIMIT_CORR)
-
-        ax.grid(True, linestyle='--', alpha=0.3)
-        ax.axvline(x=0.0, color='black', linestyle=':', linewidth=1)  # <- optional reference for ratio bias
-        # If your PR bias is absolute difference (not ratio), change this back to x=0.
-
-        for model in pr_all_perf_metrics.index:
-            true_x = pr_all_perf_metrics.loc[model, xcol]
-            true_y = pr_all_perf_metrics.loc[model, 'annual_corr']
-            mid = str(model_ids[model])
-            color = model_colors.get(model, '0.6')
-
-            # Outlier logic: enforce your statement "only Model 26 is outlier"
-            is_outlier = (OUTLIER_MODEL_NAME is not None and model == OUTLIER_MODEL_NAME)
-
-            # Also treat anything outside the clamp as out-of-range (safety)
-            is_x_out = (true_x < LIMIT_BIAS[0]) or (true_x > LIMIT_BIAS[1])
+                is_x_out = true_x > LIMIT_BIAS[1]
             is_y_out = (true_y < LIMIT_CORR[0]) or (true_y > LIMIT_CORR[1])
-            is_out = is_outlier or is_x_out or is_y_out
+            is_forced = (forced_outlier_name is not None and model == forced_outlier_name)
+            is_out = is_forced or is_x_out or is_y_out
 
             if is_out:
-                # Dock to nearest edge of the zoom box
                 plot_x = min(max(true_x, LIMIT_BIAS[0]), LIMIT_BIAS[1])
                 plot_y = min(max(true_y, LIMIT_CORR[0]), LIMIT_CORR[1])
 
-                # White container circle at the edge
-                ax.scatter(plot_x, plot_y, color="white", s=350,
-                           edgecolors='k', linewidth=1, zorder=10)
-
-                # Colored ID inside + black stroke
+                ax.scatter(plot_x, plot_y, color="white", s=circle_size,
+                           edgecolors="k", linewidth=1, zorder=10)
                 t_out = ax.text(plot_x, plot_y, mid, fontsize=9,
-                                color=color, ha='center', va='center',
-                                fontweight='bold', zorder=11)
-                t_out.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
+                                color=color, ha="center", va="center",
+                                fontweight="bold", zorder=11)
+                t_out.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground="black")])
 
-                # Annotation: ONLY show the out-of-bounds coordinate(s)
-                parts = []
-                if true_x < LIMIT_BIAS[0] or true_x > LIMIT_BIAS[1]:
-                    parts.append(f"B:{true_x:.2f}")
-                if true_y < LIMIT_CORR[0] or true_y > LIMIT_CORR[1]:
-                    parts.append(f"r:{true_y:.2f}")
-                annot_text = "(" + ", ".join(parts) + ")" if parts else ""
-                # Offset: push left if docked on right edge, otherwise right
-                xytext_offset = (-42, 32) if plot_x >= LIMIT_BIAS[1] else (8, 15.5)
-
-                ax.annotate(
-                    annot_text, xy=(plot_x, plot_y), xytext=xytext_offset,
-                    textcoords='offset points', fontsize=7.5, color='black',
-                    arrowprops=dict(arrowstyle="->", color='black', lw=0.6),
-                    bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.8, ec='none')
-                )
-
-            else:
-                # Invisible anchor point
-                ax.scatter(true_x, true_y, s=1, color=color, alpha=0)
-
-                # Text marker (ID) with stroke
-                t = ax.text(true_x, true_y, mid, fontsize=9,
-                            color=color, ha='center', va='center',
-                            fontweight='bold')
-                t.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
-                texts.append(t)
-
-        if HAS_ADJUST_TEXT and texts:
-            adjust_text(
-                texts, ax=ax,
-                arrowprops=dict(arrowstyle='-', color='dimgray', lw=0.5),
-                expand_points=(1.2, 1.2)
-            )
-
-        ax.set_title(title)
-        if xlabel:
-            ax.set_xlabel(xlabel)
-
-    # Execute the 4 panels
-    ax_djf.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_djf, 'DJF_bias', 'DJF', '')
-
-    scatter_panel_optimized(ax_mam, 'MAM_bias', 'MAM', '')
-
-    ax_jja.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_jja, 'JJA_bias', 'JJA', 'Bias')
-
-    scatter_panel_optimized(ax_son, 'SON_bias', 'SON', 'Bias')
-
-    # --- 6. LEGEND & COLORBAR ---
-    legend_handles = [
-        Line2D([0], [0], color=model_colors.get(col, '0.6'),
-               marker='o', linestyle='', markersize=8,
-               label=f"({model_ids[col]}) {col}")
-        for col in pr_cmip6_mon_means.columns
-    ]
-    legend_handles.insert(
-        0,
-        Line2D([0], [0], color='black', marker='o', linestyle='',
-               markersize=6, label='Observed (GSWP3-W5E5)')
-    )
-
-    ax_main.legend(
-        handles=legend_handles,
-        bbox_to_anchor=(1.02, 1.02),
-        loc='upper left',
-        borderaxespad=0.,
-        frameon=False,
-        handlelength=0.5,
-        fontsize=8.5,
-        labelspacing=0.999
-    )
-
-    fig.subplots_adjust(bottom=0.12)
-
-    cax = fig.add_axes([0.12, 0.06, 0.783, 0.015])
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, cax=cax, orientation='horizontal')
-    cbar.set_label(cbar_label)
-
-    return fig
-
-
-# --------------------------------------------------------------------------
-# Cell 27 — Seasonal performance (revised) — PSL
-# --------------------------------------------------------------------------
-
-def fig_seasonal_perf_revised_psl(
-    ranked_full: pd.DataFrame,
-    psl_all_perf_metrics: pd.DataFrame,
-    psl_cmip6_mon_means: pd.DataFrame,
-    psl_observed_mon_means: pd.DataFrame,
-    model_ids: dict,
-) -> plt.Figure:
-    # --- 1. CONFIGURATION ---
-    variable = 'psl'
-
-    # Zoom limits for PSL (given by you)
-    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(psl_all_perf_metrics)
-
-    # Try to import adjustText for smart label placement
-    try:
-        from adjustText import adjust_text
-        HAS_ADJUST_TEXT = True
-    except ImportError:
-        HAS_ADJUST_TEXT = False
-        print("Note: 'adjustText' not found. Labels may overlap slightly.")
-
-    # --- 2. DATA PREPARATION ---
-    color_metric = 'rmse'   # 'rmse' | 'corr' | 'bias' | 'tss' | 'hm'
-    cmap = mpl.colormaps['winter_r']  # psl-specific palette
-
-    if color_metric == 'rmse':
-        series = psl_all_perf_metrics['annual_rmse']
-        cbar_label = 'Annual RMSE'
-    elif color_metric == 'corr':
-        series = psl_all_perf_metrics['annual_corr']
-        cbar_label = 'Annual Correlation'
-    elif color_metric == 'bias':
-        series = psl_all_perf_metrics['annual_bias'].abs()
-        cbar_label = 'Annual |Bias|'
-    elif color_metric == 'tss':
-        series = psl_all_perf_metrics['annual_tss']
-        cbar_label = 'Annual TSS'
-    elif color_metric == 'hm':
-        series = ranked_full['annual_HMperf']
-        cbar_label = 'Annual HM performance (composite)'
-    else:
-        raise ValueError("color_metric must be one of: 'rmse','corr','bias','tss','hm'")
-
-    valid = series.dropna()
-    norm = Normalize(vmin=valid.min(), vmax=valid.max())
-
-    def color_for(model):
-        val = series.get(model, np.nan)
-        return cmap(norm(val)) if np.isfinite(val) else (0.85, 0.85, 0.85, 1.0)
-
-    model_colors = {m: color_for(m) for m in psl_cmip6_mon_means.columns}
-
-    # --- 3. FIGURE LAYOUT ---
-    fig = plt.figure(figsize=(10, 11))
-    gs = gridspec.GridSpec(
-        3, 2, figure=fig,
-        height_ratios=[1.4, 1.0, 1.0],
-        hspace=0.25, wspace=0.2
-    )
-
-    ax_main = fig.add_subplot(gs[0, :])
-    ax_djf  = fig.add_subplot(gs[1, 0])
-    ax_mam  = fig.add_subplot(gs[1, 1])
-    ax_jja  = fig.add_subplot(gs[2, 0])
-    ax_son  = fig.add_subplot(gs[2, 1])
-
-    for _ax in (ax_djf, ax_mam, ax_jja, ax_son):
-        if hasattr(_ax, "set_box_aspect"):
-            _ax.set_box_aspect(9/14)
-
-    # --- 4. MAIN PLOT (Annual Cycle Lines) ---
-    for col in psl_cmip6_mon_means.columns:
-        color = model_colors.get(col, '0.6')
-        ax_main.plot(
-            psl_cmip6_mon_means.index,
-            psl_cmip6_mon_means[col].values,
-            label=f"({model_ids[col]}) {col}",
-            linewidth=0.8,
-            color=color,
-        )
-
-    ax_main.plot(
-        psl_observed_mon_means.index,
-        psl_observed_mon_means['psl'].values,
-        label='Observed',
-        color='black',
-        linewidth=2.5,
-        zorder=500
-    )
-
-    ax_main.set_title('Annual Cycle of Sea-Level Pressure')
-    ax_main.set_ylabel('Sea-level pressure (hPa)')
-    ax_main.set_xlim(1, 12)
-    months_ticks = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    ax_main.set_xticks(np.arange(1, 13))
-    ax_main.set_xticklabels(months_ticks)
-
-    # --- 5. SEASONAL SCATTER PANELS (Text markers + outlier docking) ---
-    def scatter_panel_optimized(ax, xcol, title, xlabel):
-        texts = []
-
-        ax.set_xlim(LIMIT_BIAS)
-        ax.set_ylim(LIMIT_CORR)
-
-        ax.grid(True, linestyle='--', alpha=0.3)
-        ax.axvline(x=0.0, color='black', linestyle=':', linewidth=1)
-
-        for model in psl_all_perf_metrics.index:
-            true_x = psl_all_perf_metrics.loc[model, xcol]
-            true_y = psl_all_perf_metrics.loc[model, 'annual_corr']
-            mid = str(model_ids[model])
-            color = model_colors.get(model, '0.6')
-
-            # Treat anything outside the clamp as out-of-range
-            is_x_out = (true_x < LIMIT_BIAS[0]) or (true_x > LIMIT_BIAS[1])
-            is_y_out = (true_y < LIMIT_CORR[0]) or (true_y > LIMIT_CORR[1])
-            is_out = is_x_out or is_y_out
-
-            if is_out:
-                # Dock to nearest edge of the zoom box
-                plot_x = min(max(true_x, LIMIT_BIAS[0]), LIMIT_BIAS[1])
-                plot_y = min(max(true_y, LIMIT_CORR[0]), LIMIT_CORR[1])
-
-                # White container circle at the edge
-                ax.scatter(plot_x, plot_y, color="white", s=380,
-                           edgecolors='k', linewidth=1, zorder=10)
-
-                # Colored ID inside + black stroke
-                t_out = ax.text(plot_x, plot_y, mid, fontsize=9,
-                                color=color, ha='center', va='center',
-                                fontweight='bold', zorder=11)
-                t_out.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
-
-                # Annotation: ONLY show the out-of-bounds coordinate(s)
                 parts = []
                 if is_x_out:
-                    parts.append(f"B:{true_x:.2f}")
+                    parts.append(bias_fmt.format(true_x))
                 if is_y_out:
                     parts.append(f"r:{true_y:.2f}")
                 annot_text = "(" + ", ".join(parts) + ")" if parts else ""
 
-                # Offset: push left if docked on right edge, otherwise right
-                xytext_offset = (-42, 9) if plot_x >= LIMIT_BIAS[1] else (8, 15.5)
+                xytext_offset = offset_right if plot_x >= LIMIT_BIAS[1] else offset_left
 
                 if annot_text:
                     ax.annotate(
                         annot_text, xy=(plot_x, plot_y), xytext=xytext_offset,
-                        textcoords='offset points', fontsize=7.5, color='black',
-                        arrowprops=dict(arrowstyle="->", color='black', lw=0.6),
-                        bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.8, ec='none')
+                        textcoords="offset points", fontsize=7.5, color="black",
+                        arrowprops=dict(arrowstyle="->", color="black", lw=0.6),
+                        bbox=dict(boxstyle="round,pad=0.1", fc="white", alpha=0.8, ec="none"),
                     )
-
             else:
-                # Invisible anchor point
                 ax.scatter(true_x, true_y, s=1, color=color, alpha=0)
-
-                # Text marker (ID) with stroke
                 t = ax.text(true_x, true_y, mid, fontsize=9,
-                            color=color, ha='center', va='center',
-                            fontweight='bold')
-                t.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground='black')])
+                            color=color, ha="center", va="center", fontweight="bold")
+                t.set_path_effects([PathEffects.withStroke(linewidth=1.2, foreground="black")])
                 texts.append(t)
 
         if HAS_ADJUST_TEXT and texts:
             adjust_text(
                 texts, ax=ax,
-                arrowprops=dict(arrowstyle='-', color='dimgray', lw=0.5),
-                expand_points=(1.2, 1.2)
+                arrowprops=dict(arrowstyle="-", color="dimgray", lw=0.5),
+                expand_points=(1.2, 1.2),
             )
 
         ax.set_title(title)
         if xlabel:
             ax.set_xlabel(xlabel)
 
-    # Execute the 4 panels
-    ax_djf.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_djf, 'DJF_bias', 'DJF', '')
+    ax_djf.set_ylabel("Annual Correlation")
+    scatter_panel(ax_djf, "DJF_bias", "DJF", "")
+    scatter_panel(ax_mam, "MAM_bias", "MAM", "")
+    ax_jja.set_ylabel("Annual Correlation")
+    scatter_panel(ax_jja, "JJA_bias", "JJA", cfg["xlabel"])
+    scatter_panel(ax_son, "SON_bias", "SON", cfg["xlabel"])
 
-    scatter_panel_optimized(ax_mam, 'MAM_bias', 'MAM', '')
-
-    ax_jja.set_ylabel('Annual Correlation')
-    scatter_panel_optimized(ax_jja, 'JJA_bias', 'JJA', 'Bias')
-
-    scatter_panel_optimized(ax_son, 'SON_bias', 'SON', 'Bias')
-
-    # --- 6. LEGEND & COLORBAR ---
     legend_handles = [
-        Line2D([0], [0], color=model_colors.get(col, '0.6'),
-               marker='o', linestyle='', markersize=8,
+        Line2D([0], [0], color=model_colors.get(col, "0.6"),
+               marker="o", linestyle="", markersize=8,
                label=f"({model_ids[col]}) {col}")
-        for col in psl_cmip6_mon_means.columns
+        for col in cmip6_mon_means.columns
     ]
     legend_handles.insert(
         0,
-        Line2D([0], [0], color='black', marker='o', linestyle='',
-               markersize=6, label='Observed (W5E5)')
+        Line2D([0], [0], color="black", marker="o", linestyle="",
+               markersize=6, label=cfg["obs_legend"]),
     )
-
     ax_main.legend(
         handles=legend_handles,
         bbox_to_anchor=(1.02, 1.02),
-        loc='upper left',
-        borderaxespad=0.,
+        loc="upper left",
+        borderaxespad=0.0,
         frameon=False,
         handlelength=0.5,
         fontsize=8.5,
-        labelspacing=0.999
+        labelspacing=0.999,
     )
 
     fig.subplots_adjust(bottom=0.12)
-
     cax = fig.add_axes([0.12, 0.06, 0.783, 0.015])
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, cax=cax, orientation='horizontal')
+    cbar = fig.colorbar(sm, cax=cax, orientation="horizontal")
     cbar.set_label(cbar_label)
 
     return fig
 
 
 # --------------------------------------------------------------------------
-# Cell 28 — Seasonal performance (revised) — TASMAX
+# Seasonal performance — TASMAX
+#
+# Kept separate from :func:`fig_seasonal_performance` because the tasmax
+# panel handles three CMIP6 models for which the variable is unavailable
+# (extra missing-model bookkeeping, dedicated colormap, separate
+# ``ordered_models`` argument). Folding it into the shared function via
+# branches would be fragile, so it stays as its own implementation.
 # --------------------------------------------------------------------------
 
-def fig_seasonal_perf_revised_tasmax(
+def fig_seasonal_performance_tasmax(
     ranked_full: pd.DataFrame,
     tasmax_all_perf_metrics: pd.DataFrame,
     tasmax_cmip6_mon_means: pd.DataFrame,
@@ -941,11 +558,36 @@ def fig_seasonal_perf_revised_tasmax(
     model_ids: dict,
     ordered_models: list = None,
 ) -> plt.Figure:
-    # --- 1. CONFIGURATION ---
+    """Seasonal-performance figure for ``tasmax`` (separate from tas/pr/psl).
+
+    Three CMIP6 models in the canonical 35-model ordering do not provide
+    ``tasmax``; this variant tracks them as missing and renders the
+    available subset with its own colormap. Layout matches
+    :func:`fig_seasonal_performance` (annual cycle on top, four seasonal
+    scatter panels below).
+
+    Parameters
+    ----------
+    ranked_full
+        HPS ranking table.
+    tasmax_all_perf_metrics
+        Per-model performance metrics for ``tasmax``.
+    tasmax_cmip6_mon_means, tasmax_observed_mon_means
+        Monthly-mean tables for the model ensemble and the observed reference.
+    model_ids
+        ``{model_name: integer_id}`` mapping.
+    ordered_models
+        The canonical 1..35 model ordering (used to line up missing-model
+        bookkeeping with the figure index).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
     variable = 'tasmax'
 
     # Zoom limits (given by you)
-    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(tasmax_all_perf_metrics)
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_performance_limits(tasmax_all_perf_metrics)
 
     # Try to import adjustText for smart label placement
     try:
@@ -1176,7 +818,9 @@ def fig_seasonal_perf_revised_tasmax(
 
 
 # --------------------------------------------------------------------------
-# Cell 29 — Annual Taylor diagram (per variable; verbatim cell loop)
+# Annual Taylor diagram (per variable). Superseded by
+# :func:`fig_composite_taylor`; retained for direct callers that want a
+# single-variable view.
 # --------------------------------------------------------------------------
 
 def fig_annual_taylor_per_variable(
@@ -1186,6 +830,12 @@ def fig_annual_taylor_per_variable(
     cmip6_models: pd.DataFrame,
     model_ids: dict,
 ) -> Dict[str, plt.Figure]:
+    """One annual Taylor diagram per variable. Returns ``{variable: Figure}``.
+
+    Superseded by :func:`fig_composite_taylor` for the entry-point output
+    (the composite renders all variables in a single figure); this helper
+    is kept for callers that want each variable's diagram on its own.
+    """
     from subselect.viz.taylor import TaylorDiagram
     figs: Dict[str, plt.Figure] = {}
     title_dict = {'tas': 'Temperature', 'pr': 'Precipitation', 'psl': 'Sea-Level Pressure', 'tasmax': 'Maximum Temperature'}
@@ -1231,7 +881,9 @@ def fig_annual_taylor_per_variable(
 
 
 # --------------------------------------------------------------------------
-# Cell 32 — 4-season Taylor diagram (per variable; verbatim cell loop)
+# Four-season Taylor diagram (per variable). Superseded by
+# :func:`fig_composite_taylor`; retained for callers that want a single-
+# variable view across DJF/MAM/JJA/SON.
 # --------------------------------------------------------------------------
 
 def fig_4season_taylor_per_variable(
@@ -1241,6 +893,11 @@ def fig_4season_taylor_per_variable(
     cmip6_models: pd.DataFrame,
     model_ids: dict,
 ) -> Dict[str, plt.Figure]:
+    """One 4-season Taylor figure (DJF/MAM/JJA/SON) per variable.
+
+    Superseded by :func:`fig_composite_taylor` for the entry-point output;
+    kept for direct callers that want the per-variable view.
+    """
     from subselect.viz.taylor import TaylorDiagram
     from mpl_toolkits.axisartist import grid_finder as GF
     figs: Dict[str, plt.Figure] = {}
@@ -1547,9 +1204,8 @@ def fig_composite_taylor(
 
 
 # --------------------------------------------------------------------------
-# Cell 34 — Bias maps per variable (verbatim cell loop)
-# loop period set is kwarg-controlled per user direction; cell 34 had seasonal
-# entries commented out.
+# Bias maps per variable. ``include_seasonal_bias`` toggles whether the
+# four DJF/MAM/JJA/SON figures are produced in addition to the annual one.
 # --------------------------------------------------------------------------
 
 def fig_bias_maps_per_variable(
@@ -1562,8 +1218,42 @@ def fig_bias_maps_per_variable(
     *,
     include_seasonal_bias: bool = False,
 ) -> Dict[str, plt.Figure]:
+    """Per-(variable, period) bias-map figures for one country.
+
+    Each figure shows the observed mean (top) followed by every model's
+    bias-from-observed map. The grid column count adapts to the country's
+    aspect ratio so panel titles stay legible. Returns a mapping
+    ``{f"{variable}_{period}": Figure}``.
+
+    Parameters
+    ----------
+    observed_maps
+        Nested dict ``{period: {variable: xr.Dataset}}`` of country-cropped
+        observed-mean fields (sourced from native 0.5° W5E5).
+    bias_maps
+        Nested dict ``{period: {variable: {model: xr.DataArray}}}`` of
+        per-model ``model − observed`` bias fields.
+    perf_metrics
+        Per-variable performance-metric tables (used for the per-panel
+        annotation showing each model's bias / RMSE).
+    model_ids
+        ``{model_name: integer_id}`` mapping for panel titles.
+    country
+        Country name (drives polygon lookup in the GADM shapefile and
+        figure titles).
+    shapefile_path
+        Path to the GADM 4.1 GeoPackage.
+    include_seasonal_bias
+        When ``True``, render DJF/MAM/JJA/SON figures in addition to the
+        annual one.
+
+    Returns
+    -------
+    dict
+        ``{f"{variable}_{period}": matplotlib.figure.Figure}``.
+    """
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-    import cmocean.cm as cmo  # noqa: F401  (kept verbatim from cell)
+    import cmocean.cm as cmo  # noqa: F401
     import cmcrameri.cm as cmc
     import cartopy.crs as ccrs
     import cartopy.feature as cf
@@ -1625,9 +1315,7 @@ def fig_bias_maps_per_variable(
             obs_units = variable
             bias_label = f'{variable} Bias'
 
-        # Shapefile — adapter passes a GADM 4.1 gpkg path; legacy cell hardcoded
-        # `U:/OneDrive/Shapefiles/GADM_levels/countries`. We filter the country
-        # polygon out of the GPKG instead of a per-country .shp file.
+        # Filter the country polygon out of the GADM 4.1 GeoPackage.
         gdf = gpd.read_file(shapefile_path)
         country_boundaries = gdf[gdf["COUNTRY"].str.lower() == country.lower()]
         if country_boundaries.empty:

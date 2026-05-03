@@ -1,14 +1,12 @@
 """Historical Performance Score (HPS) pipeline.
 
-Ports the paper-era pipeline from
-``legacy/cmip6-greece/GR_model_performance_HM.ipynb`` (verified during M7.0)
-into a clean module form. Per-variable metrics live on each model's native
-grid (the per-CMIP6-model upscaled obs is consumed as-is); the σ_obs scalar
-that feeds the Taylor Skill Score (TSS) denominator comes from a separate
-single-grid obs reference, decoupling TSS from per-model regridding
-variance — see ``documentation/methods.tex`` § Historical performance.
+Per-variable metrics live on each model's native grid (the per-CMIP6-model
+upscaled obs is consumed as-is); the σ_obs scalar that feeds the Taylor
+Skill Score (TSS) denominator comes from a separate single-grid obs
+reference, decoupling TSS from per-model regridding variance — see
+``documentation/methods.tex`` § Historical performance.
 
-The HPS recipe (frozen from the paper):
+The HPS recipe:
 
 1. For each (model, variable, season):
    - per-pixel metrics on the model's grid:
@@ -27,9 +25,10 @@ The HPS recipe (frozen from the paper):
    ensemble.
 5. HMperf = 2 × TSS_mm × bias_score_mm / (TSS_mm + bias_score_mm + ε_hps).
 
-Regression test pins HMperf and per-variable {TSS, bias_score} to the
-published Greece artefacts in ``tests/fixtures/greece/`` within the locked
-tolerance ladder (1e-6 target, 1e-4 fallback with a methods.tex addendum).
+The regression test pins HMperf and per-variable ``{TSS, bias_score}`` to
+the published Greece artefacts in ``tests/fixtures/greece/`` within the
+locked tolerance ladder (``1e-6`` target, ``1e-4`` fallback documented in
+``methods.tex``).
 """
 
 from __future__ import annotations
@@ -51,7 +50,6 @@ from subselect.geom import CropMethod
 DEFAULT_N_JOBS = -1
 DEFAULT_BACKEND = "loky"  # process-based; safest for xarray + netCDF4 reads
 
-# Constants from the legacy notebook (line 84-85 of the HPS .ipynb).
 P_EXPONENT = 1.5  # bias-score nonlinearity
 EPS_SIGMA = 1e-6  # σ floor for bias_score
 EPS_DIVISION = 1e-12  # avoid div-by-zero in TSS std-ratio
@@ -75,8 +73,8 @@ SEASON_MONTHS: dict[str, tuple[int, ...]] = {
 def taylor_skill_score(corr: float, std_ratio: float) -> float:
     """Taylor (2001) skill score with R₀=1: ``2(1+r) / (a + 1/a)^2``.
 
-    Inputs are clipped to safe ranges per the legacy notebook: ``a`` floored
-    at ``EPS_DIVISION``, ``r`` clipped to ``[-1, 1]``.
+    Inputs are clipped to safe ranges: ``a`` is floored at ``EPS_DIVISION``
+    and ``r`` is clipped to ``[-1, 1]``.
     """
     a = max(float(std_ratio), EPS_DIVISION)
     r = max(min(float(corr), 1.0), -1.0)
@@ -89,8 +87,8 @@ def harmonic_mean(a: float, b: float, eps: float = EPS_HPS) -> float:
 
 
 def minmax_normalize(values: pd.Series) -> pd.Series:
-    """Min-max scale a Series to [0, 1]. If the range is zero, returns the
-    original (the legacy notebook's degenerate-case branch)."""
+    """Min-max scale a Series to [0, 1]. Returns the input unchanged if the
+    range is zero (degenerate case)."""
     lo = values.min(skipna=True)
     hi = values.max(skipna=True)
     if pd.isna(lo) or pd.isna(hi) or hi <= lo:
@@ -107,10 +105,9 @@ def bias_score_pixel(
 ) -> xr.DataArray:
     """Per-pixel ``1 / (1 + (|bias| / max(σ_ref, ε))^p)``.
 
-    Direct port of ``bias_score_from_biasmap`` from the legacy notebook
-    (line 136). Pixels where the bias is NaN stay NaN in the score so the
-    downstream area-weighted mean ignores them via xarray's NaN-aware
-    weighted reductions.
+    Pixels where the bias is NaN stay NaN in the score so the downstream
+    area-weighted mean ignores them via xarray's NaN-aware weighted
+    reductions.
     """
     sigma = sigma_ref_map.reindex_like(bias_map)
     sigma = xr.where(np.isfinite(sigma) & (sigma > 0), sigma, eps)
@@ -127,12 +124,11 @@ def bias_score_pixel(
 def _normalise_time_to_first_of_month(da: xr.DataArray) -> xr.DataArray:
     """Replace the time coord with day-1-of-month standard datetimes.
 
-    Direct port of the legacy notebook's pre-slice step (around line 553):
     CMIP6 models use a mix of 360-day, noleap, and gregorian calendars with
-    timestamps at start, middle, or end of each month. Converting every
-    timestamp to (year, month, 1) on a standard pandas datetime axis gives
-    a calendar-agnostic index so the eval-window slice catches exactly the
-    intended 240 monthly steps for a 20-year window.
+    timestamps at the start, middle, or end of each month. Converting every
+    timestamp to ``(year, month, 1)`` on a standard pandas datetime axis
+    gives a calendar-agnostic index so an eval-window slice catches exactly
+    the intended 240 monthly steps for a 20-year window.
     """
     new_time = pd.to_datetime(
         {
@@ -150,7 +146,7 @@ def _slice_eval_window(da: xr.DataArray, eval_window: tuple[int, int]) -> xr.Dat
     The end-bound is ``<end>-12-01`` (not ``12-31``) to stay valid under
     360-day calendars (Dec 31 does not exist there). After
     :func:`_normalise_time_to_first_of_month` the boundary catches every
-    Dec-1 timestamp and excludes nothing — matches the legacy notebook.
+    Dec-1 timestamp and excludes nothing.
     """
     start, end = eval_window
     return da.sel(time=slice(f"{start}-01-01", f"{end}-12-01"))
@@ -178,9 +174,9 @@ def _season_year(time_index: xr.DataArray, months: Iterable[int]) -> xr.DataArra
 def _interannual_sigma_map(da: xr.DataArray, months: Iterable[int]) -> xr.DataArray:
     """Per-pixel interannual σ for a season (used as σ_ref in bias_score).
 
-    Direct port of ``interannual_sigma_map`` from the legacy notebook line 117:
-    select the months from the full time series, group by DJF-safe season-year,
-    take the per-(season-year) mean, then std across season-years.
+    Selects the months from the full time series, groups by DJF-safe
+    season-year, takes the per-season-year mean, then takes std across
+    season-years.
     """
     months = list(months)
     sel = da.sel(time=da["time"].dt.month.isin(months))
@@ -324,8 +320,8 @@ def _model_obs_climatologies(
     The full obs timeseries (1995–2014, country-cropped, monthly) is also
     returned so :func:`_interannual_sigma_map` can compute per-pixel σ_ref
     for the bias_score against the actual interannual variability rather
-    than a smoothed climatology. Order matches the legacy notebook
-    (line 547+): crop → time-normalise → eval-slice → climatology.
+    than a smoothed climatology. Order: crop → time-normalise →
+    eval-slice → climatology.
     """
     cmip6_ds = io.load_cmip6(variable, scenario, model, config=config)
     if "height" in cmip6_ds.coords:
