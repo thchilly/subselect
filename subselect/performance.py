@@ -475,7 +475,7 @@ def compute_hps(
     the column-name suffix (the xlsx uses ``<period>_HMperf``; this returns
     just ``<period>``). The regression test renames before comparing.
 
-    Recipe (frozen from the paper, line 3450+ of the legacy HPS notebook):
+    Recipe:
 
     1. Per-variable metric tables for ``{tas, pr, psl}`` (tasmax excluded).
     2. Composite TSS per period = mean across variables, then min-max

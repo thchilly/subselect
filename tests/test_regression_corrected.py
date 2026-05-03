@@ -1,24 +1,14 @@
-"""Regression tests: post-`cache-globalized` pipeline outputs for Greece.
+"""Regression tests: pipeline outputs for Greece.
 
-Pins the per-artefact outputs of the L1 pipeline (post-Step-3.6) at
-machine epsilon. The fixtures are snapshots of the parquet files written
-to ``cache/greece/`` by ``subselect.compute.compute('greece')`` against
-the global cache produced by ``subselect.compute_global.compute_global()``.
+Pins the per-artefact outputs of the L1 pipeline at machine epsilon. The
+fixtures are snapshots of the parquet files written to ``cache/greece/``
+by ``subselect.compute.compute("greece")`` against the global cache
+produced by ``subselect.compute_global.compute_global()``.
 
-The fixture values incorporate two architectural changes from prior tags:
-
-1. **Methodology corrections** (Step 2, ``methodology-corrected``):
-   ``σ_obs`` uses cos(latitude)-weighted spatial means and is computed on
-   the native 0.5° W5E5 reference. See ``documentation/methods.tex §
-   Methodology corrections (post-paper)``.
-
-2. **Cache architecture** (Step 3.6, ``cache-globalized``): per-(model,
-   var) climatologies live in ``cache/_global/``; per-country derivations
-   crop those cached fields. The reordered float-summation in the spread
-   pipeline introduces a $\\sim$1e-5 absolute / 1e-7 relative numerical
-   drift relative to the legacy operation order; this is documented in
-   ``documentation/methods.tex § Cache scope`` and is the canonical
-   contract from this tag onward.
+Cache filenames carry a ``__<crop_method>`` suffix; the regression
+fixtures pin the current code default ``bbox``. Running the pipeline
+with a different crop method writes to its own keyed entries and does
+not affect this contract.
 
 The tests read directly from ``cache/greece/parquet/`` rather than
 calling :func:`subselect.compute.compute` so the test runtime stays
@@ -45,6 +35,9 @@ PERIODS = ("annual", "DJF", "MAM", "JJA", "SON")
 HPS_VARIABLES = ("tas", "pr", "psl")
 ALL_VARIABLES = HPS_VARIABLES + ("tasmax",)
 ATOL = 1e-12
+# Cache filenames carry the crop-method suffix; the regression fixtures pin
+# the current code default (bbox).
+CROP_SUFFIX = "bbox"
 
 
 @pytest.mark.regression
@@ -70,12 +63,12 @@ def test_corrected_cache_present():
     suite.
     """
     expected = [
-        f"performance_metrics__{v}.parquet" for v in ALL_VARIABLES
+        f"performance_metrics__{v}__{CROP_SUFFIX}.parquet" for v in ALL_VARIABLES
     ] + [
-        "composite_hps.parquet",
-        "composite_hps_full.parquet",
-        "change_signals.parquet",
-        "observed_std_dev.parquet",
+        f"composite_hps__{CROP_SUFFIX}.parquet",
+        f"composite_hps_full__{CROP_SUFFIX}.parquet",
+        f"change_signals__{CROP_SUFFIX}.parquet",
+        f"observed_std_dev__{CROP_SUFFIX}.parquet",
     ]
     missing = [name for name in expected if not (CACHE / name).is_file()]
     assert not missing, (
@@ -88,7 +81,9 @@ def test_corrected_cache_present():
 @pytest.mark.parametrize("variable", ALL_VARIABLES)
 def test_per_variable_metrics_corrected(variable: str):
     expected = pd.read_parquet(FIXTURES / f"per_variable_metrics_{variable}.parquet")
-    actual = pd.read_parquet(CACHE / f"performance_metrics__{variable}.parquet")
+    actual = pd.read_parquet(
+        CACHE / f"performance_metrics__{variable}__{CROP_SUFFIX}.parquet"
+    )
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -101,7 +96,7 @@ def test_per_variable_metrics_corrected(variable: str):
 @pytest.mark.regression
 def test_composite_hps_corrected():
     expected = pd.read_parquet(FIXTURES / "composite_hps.parquet")
-    actual = pd.read_parquet(CACHE / "composite_hps.parquet")
+    actual = pd.read_parquet(CACHE / f"composite_hps__{CROP_SUFFIX}.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -114,7 +109,7 @@ def test_composite_hps_corrected():
 @pytest.mark.regression
 def test_composite_hps_full_corrected():
     expected = pd.read_parquet(FIXTURES / "composite_hps_full.parquet")
-    actual = pd.read_parquet(CACHE / "composite_hps_full.parquet")
+    actual = pd.read_parquet(CACHE / f"composite_hps_full__{CROP_SUFFIX}.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -127,7 +122,7 @@ def test_composite_hps_full_corrected():
 @pytest.mark.regression
 def test_observed_std_dev_corrected():
     expected = pd.read_parquet(FIXTURES / "observed_std_dev.parquet")
-    actual = pd.read_parquet(CACHE / "observed_std_dev.parquet")
+    actual = pd.read_parquet(CACHE / f"observed_std_dev__{CROP_SUFFIX}.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,
@@ -140,7 +135,7 @@ def test_observed_std_dev_corrected():
 @pytest.mark.regression
 def test_change_signals_corrected():
     expected = pd.read_parquet(FIXTURES / "change_signals.parquet")
-    actual = pd.read_parquet(CACHE / "change_signals.parquet")
+    actual = pd.read_parquet(CACHE / f"change_signals__{CROP_SUFFIX}.parquet")
     pd.testing.assert_frame_equal(
         actual.reindex_like(expected),
         expected,

@@ -50,9 +50,16 @@ class Cache:
     in the global cache; country-mean reductions live in the per-country one.
     """
 
-    def __init__(self, scope: str, cache_root: Path):
+    def __init__(
+        self,
+        scope: str,
+        cache_root: Path,
+        *,
+        crop_method: str | None = None,
+    ):
         self.scope = scope
         self.country = scope  # backwards-compatible alias for callers that named it
+        self.crop_method = crop_method
         self.root = Path(cache_root) / scope
         self.root.mkdir(parents=True, exist_ok=True)
         self._catalog_path = self.root / CATALOG_FILENAME
@@ -60,8 +67,24 @@ class Cache:
 
     @classmethod
     def global_cache(cls, cache_root: Path) -> "Cache":
-        """Return the country-independent global-scope cache."""
-        return cls(GLOBAL_SCOPE, cache_root)
+        """Return the country-independent global-scope cache.
+
+        The global cache holds country-independent artefacts (per-(model, var)
+        climatologies, native-grid σ maps, …) and therefore takes no
+        ``crop_method`` — its keys are unsuffixed.
+        """
+        return cls(GLOBAL_SCOPE, cache_root, crop_method=None)
+
+    def _key(self, key: str) -> str:
+        """Apply the crop-method suffix to a logical key.
+
+        Per-country artefacts depend on the crop method, so the on-disk
+        filename and catalog key both carry a ``__<crop_method>`` suffix.
+        Global artefacts are crop-method-independent and pass through.
+        """
+        if self.crop_method is None:
+            return key
+        return f"{key}__{self.crop_method}"
 
     # -- catalog --------------------------------------------------------
 
@@ -82,14 +105,15 @@ class Cache:
 
     def has(self, key: str) -> bool:
         """Return ``True`` if the catalog records an artefact for ``key``."""
-        return key in self._catalog
+        return self._key(key) in self._catalog
 
     def is_fresh(self, key: str, deps: Iterable[Path]) -> bool:
         """``True`` if the artefact exists, all its on-disk files are present,
         and no dependency mtime exceeds the recorded ``input_mtime``."""
-        if key not in self._catalog:
+        stored_key = self._key(key)
+        if stored_key not in self._catalog:
             return False
-        entry = self._catalog[key]
+        entry = self._catalog[stored_key]
         path = self.root / entry["path"]
         if not path.exists():
             return False
@@ -99,7 +123,8 @@ class Cache:
 
     def invalidate(self, key: str) -> None:
         """Drop ``key`` from the catalog and remove its on-disk artefact."""
-        entry = self._catalog.pop(key, None)
+        stored_key = self._key(key)
+        entry = self._catalog.pop(stored_key, None)
         if entry is None:
             self._save_catalog()
             return
@@ -108,7 +133,7 @@ class Cache:
             shutil.rmtree(path, ignore_errors=True)
         elif path.is_file():
             path.unlink(missing_ok=True)
-        scalars = self.root / "parquet" / f"{key}__scalars.json"
+        scalars = self.root / "parquet" / f"{stored_key}__scalars.json"
         scalars.unlink(missing_ok=True)
         self._save_catalog()
 
@@ -146,14 +171,23 @@ class Cache:
         deps = list(deps)
         max_mtime = self._max_dep_mtime(deps)
         kind = kind or _infer_kind(value)
-        path = self._write(key, value, kind)
-        self._catalog[key] = {
+        stored_key = self._key(key)
+        path = self._write(stored_key, value, kind)
+        # Re-read the on-disk catalog before merging so concurrent writers
+        # (e.g. a second Cache instance keyed by a different crop_method) do
+        # not lose each other's entries.
+        on_disk = self._load_catalog()
+        on_disk.update(self._catalog)
+        self._catalog = on_disk
+        self._catalog[stored_key] = {
             "path": str(path.relative_to(self.root)),
             "kind": kind,
             "computed_at": time.time(),
             "input_mtime": max_mtime,
             "deps": [str(p) for p in deps],
         }
+        if self.crop_method is not None:
+            self._catalog[stored_key]["crop_method"] = self.crop_method
         self._save_catalog()
 
     def _write(self, key: str, value: Any, kind: str) -> Path:
@@ -255,9 +289,10 @@ class Cache:
         return type depends on the recorded ``kind`` (DataFrame, Series,
         Dataset, DataArray, or a nested dict of these).
         """
-        if key not in self._catalog:
+        stored_key = self._key(key)
+        if stored_key not in self._catalog:
             raise KeyError(f"{key!r} not in cache catalog")
-        entry = self._catalog[key]
+        entry = self._catalog[stored_key]
         kind = entry["kind"]
         path = self.root / entry["path"]
 

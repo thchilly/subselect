@@ -160,12 +160,15 @@ A peer-reviewed paper on the Greece-only application was published in April
 2026; cite it as:
 
 ```bibtex
-@article{Tsilimigkras2026subselection,
-    author  = {Tsilimigkras, Athanasios and Koutroulis, Aristeidis},
-    title   = {{(Greece subselection paper — title TBD)}},
-    journal = {(TBD)},
-    year    = 2026,
-    doi     = {(TBD)},
+@article{tsilimigkras2026subselection,
+  author  = {Tsilimigkras, A. and Lazaridis, M. and Voulgarakis, A. and others},
+  title   = {Climate projections for {Greece}: Defining a regional sub-ensemble from the {CMIP6} landscape},
+  journal = {Theoretical and Applied Climatology},
+  volume  = {157},
+  pages   = {123},
+  year    = {2026},
+  doi     = {10.1007/s00704-026-06029-w},
+  url     = {https://doi.org/10.1007/s00704-026-06029-w},
 }
 ```
 

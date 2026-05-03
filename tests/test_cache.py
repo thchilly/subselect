@@ -109,6 +109,47 @@ def test_cross_scope_invalidation(tmp_path: Path) -> None:
     assert not country_cache.is_fresh("derived", catalog_dep)
 
 
+def test_crop_method_invalidation(tmp_path: Path) -> None:
+    """Two per-country caches keyed by different ``crop_method`` values
+    must not collide.
+
+    Concretely: writing the same logical key from two ``Cache`` instances
+    (one with ``crop_method="bbox"``, one with ``crop_method="shapefile_lenient"``)
+    should produce two distinct artefact entries; reading from each instance
+    returns its own value; clearing one leaves the other intact.
+    """
+    bbox_cache = Cache("greece", tmp_path, crop_method="bbox")
+    shp_cache = Cache("greece", tmp_path, crop_method="shapefile_lenient")
+
+    df_bbox = pd.DataFrame({"v": [1.0, 2.0, 3.0]}, index=[10, 20, 30])
+    df_shp = pd.DataFrame({"v": [10.0, 20.0, 30.0]}, index=[10, 20, 30])
+
+    bbox_cache.save("metric", df_bbox, deps=[])
+    shp_cache.save("metric", df_shp, deps=[])
+
+    # Both lookups succeed and return distinct values.
+    assert bbox_cache.has("metric")
+    assert shp_cache.has("metric")
+    pd.testing.assert_frame_equal(bbox_cache.load("metric"), df_bbox)
+    pd.testing.assert_frame_equal(shp_cache.load("metric"), df_shp)
+    assert not df_bbox.equals(df_shp)
+
+    # The catalog now records both — under suffixed keys.
+    fresh = Cache("greece", tmp_path, crop_method="bbox")
+    assert "metric__bbox" in fresh._catalog
+    assert "metric__shapefile_lenient" in fresh._catalog
+
+    # On-disk filenames carry the suffix and are distinct.
+    assert (tmp_path / "greece" / "parquet" / "metric__bbox.parquet").is_file()
+    assert (tmp_path / "greece" / "parquet" / "metric__shapefile_lenient.parquet").is_file()
+
+    # Invalidating one method leaves the other intact.
+    bbox_cache.invalidate("metric")
+    assert not bbox_cache.has("metric")
+    assert shp_cache.has("metric")
+    pd.testing.assert_frame_equal(shp_cache.load("metric"), df_shp)
+
+
 def test_dataclass_round_trip(tmp_path: Path) -> None:
     from subselect.state import ProfileSignals
 

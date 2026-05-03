@@ -43,6 +43,7 @@ DEFAULT_BACKEND = "loky"
 def _annual_timeseries_one_from_global(
     variable: str, model: str, scenario: str, country: str,
     cache_root: Path, config: Config,
+    crop_method: str = "bbox",
 ) -> tuple[str, pd.Series] | None:
     """Country-mean annual time-series for one (variable, model, scenario)
     by cropping the cached global annual-mean field.
@@ -68,7 +69,7 @@ def _annual_timeseries_one_from_global(
 
     if global_cache.has(key):
         annual = global_cache.load(key)
-        cropped = crop(annual, country, method="bbox", config=config).data
+        cropped = crop(annual, country, method=crop_method, config=config).data
         series = pd.Series(
             {
                 int(y): _spatial_weighted_mean(cropped.sel(year=y))
@@ -87,7 +88,7 @@ def _annual_timeseries_one_from_global(
         ds = ds.drop_vars("height")
     da = _normalise_time_to_first_of_month(ds[variable])
     annual = da.groupby("time.year").mean("time")
-    cropped = crop(annual, country, method="bbox", config=config).data
+    cropped = crop(annual, country, method=crop_method, config=config).data
     series = pd.Series(
         {
             int(y): _spatial_weighted_mean(cropped.sel(year=y))
@@ -99,7 +100,9 @@ def _annual_timeseries_one_from_global(
 
 
 def _build_annual_timeseries(
-    variable: str, country: str, config: Config, *, n_jobs: int = DEFAULT_N_JOBS,
+    variable: str, country: str, config: Config,
+    *, n_jobs: int = DEFAULT_N_JOBS,
+    crop_method: str = "bbox",
 ) -> pd.DataFrame:
     """Annual country-mean time-series 1850–2100 across all SSPs and models.
 
@@ -113,6 +116,7 @@ def _build_annual_timeseries(
     results = parallel(
         delayed(_annual_timeseries_one_from_global)(
             variable, m, s, country, config.cache_root, config,
+            crop_method=crop_method,
         )
         for m, s in jobs
     )
@@ -127,7 +131,10 @@ def _build_annual_timeseries(
     return df
 
 
-def annual_timeseries(country: str, config: Config, cache: Cache) -> dict[str, pd.DataFrame]:
+def annual_timeseries(
+    country: str, config: Config, cache: Cache,
+    *, crop_method: str = "bbox",
+) -> dict[str, pd.DataFrame]:
     """Build (or load from cache) the annual country-mean time-series for the
     three time-series variables (``tas``, ``pr``, ``psl``)."""
     out: dict[str, pd.DataFrame] = {}
@@ -139,7 +146,7 @@ def annual_timeseries(country: str, config: Config, cache: Cache) -> dict[str, p
         if cache.is_fresh(key, deps):
             out[variable] = cache.load(key)
             continue
-        df = _build_annual_timeseries(variable, country, config)
+        df = _build_annual_timeseries(variable, country, config, crop_method=crop_method)
         cache.save(key, df, deps=deps)
         out[variable] = df
     return out
@@ -521,6 +528,7 @@ def _reference_inputs(variable: str, config: Config) -> list[Path]:
 
 def composite_hps(
     country: str, perf_metrics: dict[str, pd.DataFrame], config: Config, cache: Cache,
+    *, crop_method: str = "bbox",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Composite HPS table and its full ranked variant for one country.
 
@@ -544,7 +552,7 @@ def composite_hps(
     if cache.is_fresh(key_hps, deps):
         hps = cache.load(key_hps)
     else:
-        hps = compute_hps(country, config=config).rename(
+        hps = compute_hps(country, config=config, crop_method=crop_method).rename(
             columns={p: f"{p}_HMperf" for p in PERIODS}
         )
         cache.save(key_hps, hps, deps=deps)
@@ -574,7 +582,10 @@ def composite_hps(
     return hps, full
 
 
-def observed_std_dev(country: str, config: Config, cache: Cache) -> pd.DataFrame:
+def observed_std_dev(
+    country: str, config: Config, cache: Cache,
+    *, crop_method: str = "bbox",
+) -> pd.DataFrame:
     """σ_obs (per variable, per period) for the country, on the single grid.
 
     Used as the σ in the TSS denominator. One row per variable, one column
@@ -591,7 +602,7 @@ def observed_std_dev(country: str, config: Config, cache: Cache) -> pd.DataFrame
     if cache.is_fresh(key, deps):
         return cache.load(key)
     sigmas = {
-        v: _compute_obs_std_per_period(v, country, "bbox", config) for v in ALL_VARIABLES
+        v: _compute_obs_std_per_period(v, country, crop_method, config) for v in ALL_VARIABLES
     }
     df = pd.DataFrame(
         {v: [sigmas[v][p] for p in PERIODS] for v in ALL_VARIABLES},
@@ -603,6 +614,7 @@ def observed_std_dev(country: str, config: Config, cache: Cache) -> pd.DataFrame
 
 def _monthly_means_one(
     model: str, variable: str, country: str, config: Config,
+    *, crop_method: str = "bbox",
 ) -> tuple[str, list[float], list[float]] | None:
     """Per-(model, variable) monthly-cycle spatial means.
 
@@ -616,7 +628,7 @@ def _monthly_means_one(
     try:
         obs_clim, mod_clim, _ = _model_obs_climatologies(
             model=model, variable=variable, scenario="ssp585",
-            country=country, crop_method="bbox", config=config,
+            country=country, crop_method=crop_method, config=config,
         )
     except FileNotFoundError:
         return None
@@ -627,7 +639,9 @@ def _monthly_means_one(
 
 
 def monthly_means(
-    country: str, config: Config, cache: Cache, *, n_jobs: int = DEFAULT_N_JOBS,
+    country: str, config: Config, cache: Cache,
+    *, n_jobs: int = DEFAULT_N_JOBS,
+    crop_method: str = "bbox",
 ) -> dict[str, dict[str, pd.DataFrame]]:
     """Per-variable spatial-mean monthly-cycle climatology for CMIP6 models +
     observations. ``{var: {'cmip6': df, 'obs': df}}``.
@@ -652,7 +666,7 @@ def monthly_means(
             }
             continue
         results = parallel(
-            delayed(_monthly_means_one)(m, variable, country, config)
+            delayed(_monthly_means_one)(m, variable, country, config, crop_method=crop_method)
             for m in io.load_models_list(config)
         )
         cmip_cols: dict[str, list[float]] = {}
@@ -708,6 +722,7 @@ def _period_means_from_cached_clim(
 
 def spread(
     country: str, config: Config, cache: Cache,
+    *, crop_method: str = "bbox",
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """End-of-century change signals + long-term + pre-industrial spread tables.
 
@@ -744,14 +759,16 @@ def spread(
                 continue
             eoc_clim = global_cache.load(eoc_key)
             lt = _period_means_from_cached_clim(
-                eoc_clim, country, config, box_offset=SPREAD_BOX_OFFSET,
+                eoc_clim, country, config,
+                crop_method=crop_method, box_offset=SPREAD_BOX_OFFSET,
             )
             for p in PERIODS:
                 long_df.loc[model, f"{variable}_{p}"] = lt[p]
             if global_cache.has(pi_key):
                 pi_clim = global_cache.load(pi_key)
                 pi = _period_means_from_cached_clim(
-                    pi_clim, country, config, box_offset=SPREAD_BOX_OFFSET,
+                    pi_clim, country, config,
+                    crop_method=crop_method, box_offset=SPREAD_BOX_OFFSET,
                 )
                 for p in PERIODS:
                     pi_df.loc[model, f"{variable}_{p}"] = pi[p]
@@ -900,6 +917,7 @@ def compute(
     config: Config | None = None,
     include_bias_maps: bool = True,
     include_seasonal_bias: bool = False,
+    crop_method: str = "bbox",
 ) -> SubselectState:
     """Run every L1 derivation for *country* and return a populated state.
 
@@ -931,6 +949,12 @@ def compute(
         climatologies are already cached, expensive on a cold start).
     include_seasonal_bias
         Whether bias maps include the four seasons in addition to ``annual``.
+    crop_method
+        Country-cropping rule. One of ``"bbox"`` (default),
+        ``"shapefile_strict"``, ``"shapefile_lenient"``,
+        ``"shapefile_fractional"``. Per-country cache entries are keyed by
+        ``crop_method`` so two runs with different methods do not collide.
+        The global cache is unaffected.
 
     Returns
     -------
@@ -948,7 +972,7 @@ def compute(
         render(state)
     """
     config = config or Config.from_env()
-    cache = Cache(country, config.cache_root)
+    cache = Cache(country, config.cache_root, crop_method=crop_method)
 
     force_global = force is True or force == "all" or force == "global"
     force_country = force is True or force == "all" or force == "country"
@@ -964,7 +988,7 @@ def compute(
     # --- annual time series + warming levels ------------------------------
     annual_ts: dict[str, pd.DataFrame] = {}
     if _enabled("profile"):
-        annual_ts = annual_timeseries(country, config, cache)
+        annual_ts = annual_timeseries(country, config, cache, crop_method=crop_method)
 
     wl_models = wl_medians = pi_b = rp_b = None
     if _enabled("profile") and "tas" in annual_ts:
@@ -1027,14 +1051,17 @@ def compute(
                 country, config, cache,
                 include_bias_maps=include_bias_maps,
                 include_seasonal_bias=include_seasonal_bias,
+                crop_method=crop_method,
             )
         )
-        composite, composite_full = composite_hps(country, perf_metrics, config, cache)
+        composite, composite_full = composite_hps(
+            country, perf_metrics, config, cache, crop_method=crop_method,
+        )
 
     # --- spread pipeline --------------------------------------------------
     change_df = long_df = pi_df = pd.DataFrame()
     if _enabled("spread"):
-        change_df, long_df, pi_df = spread(country, config, cache)
+        change_df, long_df, pi_df = spread(country, config, cache, crop_method=crop_method)
 
     # --- assemble state ---------------------------------------------------
     return SubselectState(

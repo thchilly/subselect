@@ -81,14 +81,28 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--no-bias-maps", action="store_true",
         help="Skip the bias-map fields entirely (cheap if you don't need them).",
     )
+    parser.add_argument(
+        "--crop-method",
+        default="bbox",
+        choices=[
+            "bbox", "shapefile_strict", "shapefile_lenient", "shapefile_fractional",
+        ],
+        help=(
+            "Country-cropping rule (default: bbox). Per-country cache entries "
+            "are keyed by the chosen method, so two runs with different "
+            "methods do not collide."
+        ),
+    )
     return parser.parse_args(argv)
 
 
-def _load_state_from_cache(country: str, config: Config) -> SubselectState:
+def _load_state_from_cache(
+    country: str, config: Config, crop_method: str = "bbox",
+) -> SubselectState:
     """Run ``compute(force=False)``: every artefact already in cache will be
     cache-hit-loaded; anything missing will be (re)computed. With a populated
     cache this is the <30s fast path."""
-    return compute(country, config=config)
+    return compute(country, config=config, crop_method=crop_method)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -141,13 +155,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[subselect] country={args.country}")
 
     if args.no_recompute:
-        state = _load_state_from_cache(args.country, config)
+        state = _load_state_from_cache(
+            args.country, config, crop_method=args.crop_method,
+        )
     else:
         state = compute(
             args.country,
             only=only, force=force_arg, config=config,
             include_bias_maps=not args.no_bias_maps,
             include_seasonal_bias=args.include_seasonal_bias,
+            crop_method=args.crop_method,
         )
     t_compute = time.time() - t0
     print(f"[subselect] L1 compute done in {t_compute:.1f} s")

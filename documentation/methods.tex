@@ -88,8 +88,9 @@ that is \emph{conservative interpolation for \texttt{pr}} and
 line 55). The 1995--2014 evaluation window per \texttt{Config.eval\_window}
 is sliced \emph{after} loading.
 
-\paragraph{Rationale.} The choices are inherited from the published paper
-and verified during M7.0, not re-litigated. The paper-era pipeline does
+\paragraph{Rationale.} The choices are inherited from the published Greece
+paper~\citep{tsilimigkras2026subselection} and verified during M7.0, not
+re-litigated. The paper-era pipeline does
 \emph{no} on-the-fly regridding (verified by \texttt{grep} of the
 notebook --- no \texttt{xesmf}, no \texttt{Regridder}, no \texttt{.interp()}
 calls in the active code path); regridding is upstream pre-processing
@@ -275,10 +276,10 @@ is captured by the \texttt{phase-0-complete} tag.
 \section{Future-response spread}\label{sec:spread}
 % =============================================================================
 
-The future-spread dimension is partially inherited from the published paper
-(change variables, scenario default) and partially extended for the framework
-(formal sub-ensemble coverage metric). See \texttt{../docs/future\_spread.md}
-for the design space.
+The future-spread dimension is partially inherited from the published Greece
+paper~\citep{tsilimigkras2026subselection} (change variables, scenario
+default) and partially extended for the framework (formal sub-ensemble
+coverage metric). See \texttt{../docs/future\_spread.md} for the design space.
 
 % --- entries appended below as spread methodology is finalized ----------------
 
@@ -326,9 +327,10 @@ discrete labels rest.
 % =============================================================================
 
 The independence dimension is new in the framework; it was not part of the
-published Greece paper. Two methods are scoped: feature-space clustering on a
-regional climate-response embedding, and pairwise-RMSE genealogy clustering.
-See \texttt{../docs/model\_similarity.md} for the design.
+published Greece paper~\citep{tsilimigkras2026subselection}. Two methods are
+scoped: feature-space clustering on a regional climate-response embedding,
+and pairwise-RMSE genealogy clustering. See
+\texttt{../docs/model\_similarity.md} for the design.
 
 % --- entries appended below as independence methodology is finalized ---------
 
