@@ -23,6 +23,7 @@
 \usepackage[round]{natbib}
 \usepackage{enumitem}
 \setlist{itemsep=2pt, topsep=4pt}
+\setlength{\emergencystretch}{3em}
 
 \title{\texttt{subselect} --- Methodology Log}
 \author{Athanasios Tsilimigkras \\
@@ -97,8 +98,9 @@ that produced the upscaled files is not part of the framework's
 dependency surface.
 
 \paragraph{Implementation.} \texttt{subselect.io.load\_cmip6} reads
-\texttt{Data/CMIP6/monthly/<var>/<scenario>/<MODEL>\_*.nc};
-\texttt{subselect.io.load\_w5e5} reads \texttt{Data/reference/monthly\_cmip6\_upscaled/<MODEL>/<var>\_*\_<MODEL>.nc}
+\path{Data/CMIP6/monthly/<var>/<scenario>/<MODEL>_*.nc};
+\texttt{subselect.io.load\_w5e5} reads
+\path{Data/reference/monthly_cmip6_upscaled/<MODEL>/<var>_*_<MODEL>.nc}
 via \texttt{REFERENCE\_FILENAME\_TEMPLATES}. Period slicing happens
 inside \texttt{subselect.performance.compute\_hps}.
 
@@ -127,9 +129,9 @@ observations grid-cell-by-grid-cell?
 
 \paragraph{Choice.} Two-tier reference: $\sigma_{\text{obs}}$ from the
 single-grid upscaled product
-(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc}),
+(\path{Data/reference/monthly_upscaled/<var>_*_cmip6_upscaled.nc}),
 per-pixel metrics from the per-CMIP6-model upscaled product
-(\texttt{Data/reference/monthly\_cmip6\_upscaled/<MODEL>/<var>\_*\_<MODEL>.nc}).
+(\path{Data/reference/monthly_cmip6_upscaled/<MODEL>/<var>_*_<MODEL>.nc}).
 
 \paragraph{Rationale.} Decouples TSS values from model-specific regridding
 variance. Per-model $\sigma_{\text{obs}}$ would couple TSS to the
@@ -158,9 +160,9 @@ restored the $\cos\varphi$ weighting; see \S\ Methodology corrections
 common grid) for $\sigma_{\text{obs}}$;
 \texttt{subselect.io.load\_w5e5} (per-model upscaled) for the per-pixel
 comparison. \texttt{Config.single\_grid\_reference\_root} (default
-\texttt{<data\_root>/reference/monthly\_upscaled}) and
+\path{<data_root>/reference/monthly_upscaled}) and
 \texttt{Config.reference\_root} (default
-\texttt{<data\_root>/reference/monthly\_cmip6\_upscaled}) keep the two
+\path{<data_root>/reference/monthly_cmip6_upscaled}) keep the two
 products separately addressable; both are TOML-overridable.
 
 \paragraph{Decided.} 2026-05-01, in version 0.1.0. Both initial parity
@@ -179,10 +181,10 @@ from the native 0.5\textdegree{} W5E5 product (360~$\times$~720), not
 from the cmip6-grid upscaled product used for $\sigma_{\text{obs}}$.
 
 The bias-map adapter
-(\texttt{subselect.viz.\_data\_adapters.build\_bias\_maps\_state})
+(\path{subselect.viz._data_adapters.build_bias_maps_state})
 populates \texttt{observed\_maps[period][variable]} via
 \texttt{subselect.io.load\_native\_w5e5}, which resolves to
-\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc}. This yields
+\path{<data_root>/reference/monthly_05/<var>_*.nc}. This yields
 the high-resolution observed-mean panel that pairs naturally with the
 per-model bias maps (\textasciitilde 520 native pixels in the Greece
 bbox, vs the \textasciitilde 49 pixels the cmip6-grid upscaled product
@@ -220,10 +222,10 @@ $\cos\varphi$-weighted helper that every other spatial mean uses.
 \paragraph{Correction 2: native 0.5\textdegree{} reference for $\sigma_{\text{obs}}$.}
 The published pipeline read $\sigma_{\text{obs}}$ from the cmip6-grid
 upscaled product
-(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
+(\path{Data/reference/monthly_upscaled/<var>_*_cmip6_upscaled.nc},
 1.25\textdegree~$\times$~1.875\textdegree, 144~$\times$~192). The
 corrected pipeline reads from the native 0.5\textdegree{} single-grid
-product (\texttt{Data/reference/monthly\_05/<var>\_*.nc},
+product (\path{Data/reference/monthly_05/<var>_*.nc},
 0.5\textdegree~$\times$~0.5\textdegree, 360~$\times$~720) via
 \texttt{subselect.io.load\_native\_w5e5}. The native product is the
 direct W5E5 obs without an upscaling pre-processing step, so
@@ -243,8 +245,8 @@ smoothing into the TSS denominator that has no physical basis.
 Version 0.1.0 pins parquet snapshots of the corrected pipeline outputs
 (\texttt{compute\_metrics} per variable, \texttt{compute\_hps},
 \texttt{compute\_change\_signals}) under
-\texttt{tests/fixtures/regression\_corrected/}.
-\texttt{tests/test\_regression\_corrected.py} asserts bit-identity at
+\path{tests/fixtures/regression_corrected/}.
+\path{tests/test_regression_corrected.py} asserts bit-identity at
 \texttt{1e-12} against these snapshots.
 
 \paragraph{Decided.} 2026-05-02, in version 0.1.0.
@@ -292,7 +294,7 @@ orders of magnitude smaller than the inter-model spread on which the
 discrete labels rest.
 
 \paragraph{Implementation.}
-\texttt{tests/test\_regression\_greece.py::test\_greece\_change\_signals\_regression}
+\path{tests/test_regression_greece.py::test_greece_change_signals_regression}
 (uses \texttt{ATOL\_CHANGE\_SIGNALS}). The HPS regression test stays at
 \texttt{ATOL\_TARGET}.
 
@@ -339,14 +341,14 @@ when extracting a CMIP6 model's data over a user-specified country?
         \texttt{country\_codes.json}, no shapefile dependency. The published
         Greece paper used this; it over-includes ocean and neighbouring land,
         especially for archipelagic countries.
-  \item \textbf{\texttt{shapefile\_strict}}: binary mask via
-        \texttt{rasterio.features.geometry\_mask} with
+  \item \textbf{\texttt{shapefile\_strict}}: \begin{sloppypar}binary mask via
+        \path{rasterio.features.geometry_mask} with
         \texttt{all\_touched=False} --- a pixel is included only if its
         centroid lies inside the country polygon. Risk: leaves zero pixels
         for small countries on coarse grids (e.g.\ Cyprus on CanESM5
-        $\sim$2.8\,\textdegree).
+        $\sim$2.8\,\textdegree).\end{sloppypar}
   \item \textbf{\texttt{shapefile\_lenient}}: binary mask via
-        \texttt{rasterio.features.geometry\_mask} with
+        \path{rasterio.features.geometry_mask} with
         \texttt{all\_touched=True} --- any pixel touched by the country
         polygon is included. NaN outside the country.
   \item \textbf{\texttt{shapefile\_fractional}}: per-pixel area-fraction
@@ -361,9 +363,9 @@ when extracting a CMIP6 model's data over a user-specified country?
 the cropped result is a rectangular \texttt{DataArray} with NaN outside the
 country, which xarray and matplotlib both handle natively; the existing
 $\cos(\varphi)$ area-weighted spatial-mean code works unchanged because the
-\texttt{xr.DataArray.weighted(\dots).mean(\dots)} primitive already ignores
+\path{xr.DataArray.weighted(...).mean(...)} primitive already ignores
 NaN entries. Second, \emph{prototype consistency}: the legacy
-\texttt{climpact/shp\_extraction.ipynb} prototype already uses this rule, and
+\path{climpact/shp_extraction.ipynb} prototype already uses this rule, and
 adopting it as the default avoids re-litigating an empirical choice that was
 satisfactory in earlier exploratory work. Third, \emph{empirical validation}:
 visual comparison of all four methods over Greece, Cyprus, and Switzerland
@@ -402,7 +404,7 @@ cropped data is masked with NaN where $m(p) = 0$:
 
 \paragraph{Implementation.} \texttt{subselect.geom.crop} with
 \texttt{method="shapefile\_lenient"} (the default kwarg value); pinned by
-\texttt{tests/test\_geom.py::test\_lenient\_includes\_cell\_when\_polygon\_lands\_inside\_a\_single\_cell}
+\path{tests/test_geom.py::test_lenient_includes_cell_when_polygon_lands_inside_a_single_cell}
 and the overshoot-half-cell regression case alongside it.
 
 \paragraph{Decided.} 2026-04-30, in version 0.1.0.
@@ -457,17 +459,18 @@ single JSON-catalog field; harder to retrofit into intake YAML or HDF5
 attributes. Earlier exploratory pickle artefacts were language-locked
 and version-fragile; parquet replaces them and removes that dependency.
 
-\paragraph{Definition.} The cache is per-country and indexed by a small
+\begin{sloppypar}\paragraph{Definition.} The cache is per-country and indexed by a small
 JSON catalog at \texttt{cache/}$\langle c \rangle$\texttt{/catalog.json}.
 Each artefact records its on-disk path, the maximum mtime of its declared
-inputs at write time, and the time of computation. Layout:
+inputs at write time, and the time of computation. Layout:\end{sloppypar}
 %
-\begin{align*}
+{\small\begin{align*}
   \text{tabular}     \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle \texttt{.parquet} \\
   \text{dict-tabular} \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle / \langle s \rangle \texttt{.parquet} \\
-  \text{dataclass}   \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle / \{\langle f \rangle \texttt{.parquet}, \texttt{scalars.json}\} \\
+  \text{dataclass}   \quad &\text{cache/}\langle c \rangle / \texttt{parquet/} \langle k \rangle / \\
+                            &\quad \{\langle f \rangle \texttt{.parquet}, \texttt{scalars.json}\} \\
   \text{fields}      \quad &\text{cache/}\langle c \rangle / \texttt{zarr/} \langle k \rangle \texttt{.zarr}
-\end{align*}
+\end{align*}}
 %
 where $c$ = country, $k$ = artefact key, $s$ = sub-key, $f$ = dataclass
 field. On read, an artefact is invalidated whenever any declared input
@@ -521,21 +524,21 @@ cached fields.
 \paragraph{Global artefacts.}
 \begin{itemize}
 \item Per-(model, variable) historical climatology
-  (\texttt{historical\_clim\_\_<var>\_\_<model>.zarr}); 12 months on the
+  (\path{historical_clim__<var>__<model>.zarr}); 12 months on the
   model's native grid over 1995--2014.
 \item Per-(model, variable) upscaled-observation climatology
-  (\texttt{obs\_clim\_\_<var>\_\_<model>.zarr}).
+  (\path{obs_clim__<var>__<model>.zarr}).
 \item Per-(model, variable, period) interannual $\sigma$ map
-  (\texttt{sigma\_ref\_\_<var>\_\_<model>.zarr}).
+  (\path{sigma_ref__<var>__<model>.zarr}).
 \item Per-(model, variable, scenario) end-of-century climatology
-  (\texttt{eoc\_clim\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 12 months over 2081--2100.
+  (\path{eoc_clim__<var>__<model>__<ssp>.zarr}); 12 months over 2081--2100.
 \item Per-(model, variable) pre-industrial climatology
-  (\texttt{pi\_clim\_\_<var>\_\_<model>.zarr}); 12 months over 1850--1899.
+  (\path{pi_clim__<var>__<model>.zarr}); 12 months over 1850--1899.
 \item Per-(model, variable, scenario) annual-mean field
-  (\texttt{annual\_field\_\_<var>\_\_<model>\_\_<ssp>.zarr}); 251 years
+  (\path{annual_field__<var>__<model>__<ssp>.zarr}); 251 years
   on the model's native grid.
 \item Native $0.5^\circ$ W5E5 climatology + per-period $\sigma$ field per variable
-  (\texttt{native\_sigma\_obs\_\_<var>.zarr}); feeds the $\sigma_\text{obs}$
+  (\path{native_sigma_obs__<var>.zarr}); feeds the $\sigma_\text{obs}$
   scalar in the TSS denominator.
 \end{itemize}
 
@@ -563,7 +566,7 @@ spatial-mean}. The two operation orders are mathematically equivalent
 on a continuous-valued field; on float32 reductions the spread-pipeline
 outputs (\texttt{change\_signals}, \texttt{long\_term\_spread},
 \texttt{pre\_industrial\_spread}) drift by $\sim$\,$10^{-5}$ absolute /
-$10^{-7}$ relative — six significant digits, six orders of magnitude
+$10^{-7}$ relative --- six significant digits, six orders of magnitude
 below any climate-relevant threshold. This is a numerical artefact of
 the cache architecture, not a methodology change. The post-cache
 values are the canonical regression-test contract.
@@ -582,10 +585,10 @@ mutation now propagates invalidation downstream. The rule applies to
 \texttt{composite\_hps\_full}, \texttt{change\_signals},
 \texttt{long\_term\_spread}, \texttt{pre\_industrial\_spread}, and
 \texttt{annual\_timeseries\_<var>}. A unit test in
-\texttt{tests/test\_cache.py::test\_cross\_scope\_invalidation} pins
+\path{tests/test_cache.py::test_cross_scope_invalidation} pins
 the contract.
 
-\paragraph{Performance footprint.} Cold global compute: $\sim$5–7 min
+\paragraph{Performance footprint.} Cold global compute: $\sim$5--7 min
 (one-time per machine; 35 models $\times$ 4 vars $\times$ 4 SSPs
 NetCDF reads producing 1380 zarr entries totalling $\sim$3 GB). Warm
 global + cold country: $\sim$1:45 (Greece), 1:42 (Sweden), 1:56
