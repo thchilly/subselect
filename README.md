@@ -136,16 +136,16 @@ results/<country>/figures/
 - **Historical Performance Score (HPS).** Per-(variable, season) Taylor Skill
   Score and Bias-Variability Score on `{tas, pr, psl}`, harmonic-mean-combined
   and min-max normalised across the 35-model ensemble. Reference dataset:
-  W5E5; evaluation window: 1995–2014. See `docs/historical_performance.md`.
+  W5E5; evaluation window: 1995–2014.
 - **Future spread.** End-of-century (2081–2100 vs. 1850–1899) Δtas, Δpr, and
   Δtasmax under SSP5-8.5; rendered as quadrant scatter coloured by HPS rank.
-  See `docs/future_spread.md`.
 - **Model independence.** Two complementary methods (feature-space k-means
   on regional climatology, and pairwise-RMSE genealogy clustering) score
-  the redundancy of a candidate subset. See `docs/model_similarity.md`.
+  the redundancy of a candidate subset.
 
-The full methodology is logged in `documentation/methods.tex` (build with
-`pdflatex methods.tex`).
+The full methodology — definitions, equations, regression-test
+contracts, design decisions — is logged in
+`documentation/methods.tex` (build with `pdflatex methods.tex`).
 
 The framework is inspired by ClimSIPS (Merrifield, Brunner, Lorenz, Humphrey,
 Knutti, 2023; doi:10.5194/egusphere-2022-1520). Its contribution beyond
