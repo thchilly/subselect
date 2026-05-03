@@ -89,15 +89,12 @@ line 55). The 1995--2014 evaluation window per \texttt{Config.eval\_window}
 is sliced \emph{after} loading.
 
 \paragraph{Rationale.} The choices are inherited from the published Greece
-paper~\citep{tsilimigkras2026subselection} and verified during M7.0, not
-re-litigated. The paper-era pipeline does
-\emph{no} on-the-fly regridding (verified by \texttt{grep} of the
-notebook --- no \texttt{xesmf}, no \texttt{Regridder}, no \texttt{.interp()}
-calls in the active code path); regridding is upstream pre-processing
-performed during the ISIMIP3a ingest, and \texttt{subselect} consumes the
-artefacts as-is. The tooling that produced the upscaled files (likely
-\texttt{cdo} given the per-variable scheme split, but not visibly recorded
-on this MacBook) is not part of the framework's dependency surface.
+paper~\citep{tsilimigkras2026subselection} and verified by the regression
+test, not re-litigated. The pipeline does \emph{no} on-the-fly regridding;
+regridding is upstream pre-processing performed during the ISIMIP3a
+ingest, and \texttt{subselect} consumes the artefacts as-is. The tooling
+that produced the upscaled files is not part of the framework's
+dependency surface.
 
 \paragraph{Implementation.} \texttt{subselect.io.load\_cmip6} reads
 \texttt{Data/CMIP6/monthly/<var>/<scenario>/<MODEL>\_*.nc};
@@ -105,7 +102,7 @@ on this MacBook) is not part of the framework's dependency surface.
 via \texttt{REFERENCE\_FILENAME\_TEMPLATES}. Period slicing happens
 inside \texttt{subselect.performance.compute\_hps}.
 
-\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+\paragraph{Decided.} 2026-05-01, in version 0.1.0.
 
 \subsection{Observation reference grid for $\sigma_{\text{obs}}$ vs per-pixel metrics}\label{sec:performance-sigma-obs-grid}
 
@@ -123,7 +120,7 @@ observations grid-cell-by-grid-cell?
         $\sigma_{\text{obs}}$ per (variable, season), but per-pixel
         comparisons are no longer on each model's native grid --- model
         fields would need to be regridded to the common grid, which the
-        paper-era pipeline explicitly avoids.
+        framework explicitly avoids.
   \item \textbf{Two-tier reference (chosen).} $\sigma_{\text{obs}}$ from a
         single common grid; per-pixel metrics from each model's own grid.
 \end{itemize}
@@ -144,19 +141,17 @@ $\sigma_{\text{obs}}$ removes that confound and preserves cross-model
 comparability for the downstream normalisation. The per-pixel comparison
 metrics (bias, RMSE, correlation, bias\_score) must stay on each model's
 own grid because they compare \emph{model field} to \emph{obs field} cell
-by cell, and the paper-era pipeline does not regrid models. The
-two-product setup costs the storage of one extra reference dataset on disk
-and a second loader path in \texttt{subselect.io}.
+by cell, and the framework does not regrid models. The two-product setup
+costs the storage of one extra reference dataset on disk and a second
+loader path in \texttt{subselect.io}.
 
-\paragraph{Paper-era parity caveat.} The spatial mean that reduces the
-single-grid per-pixel std-over-months map to the $\sigma_{\text{obs}}$
-scalar is computed \emph{unweighted}
-(\texttt{.mean(dim=['lat', 'lon'])}, legacy line 488), inconsistent with
-the $\cos\varphi$-weighted spatial mean used everywhere else in the
-pipeline. The framework reproduces this exactly for parity with the
-published Greece numbers (locked by
-\texttt{tests/test\_regression\_greece.py}). See
-\texttt{docs/refactor.md} known-limitations for the Phase 1+ correction.
+\paragraph{Initial parity caveat (corrected in 0.1.0).} The published
+Greece pipeline reduced the single-grid per-pixel std-over-months map
+to $\sigma_{\text{obs}}$ via an \emph{unweighted}
+\texttt{.mean(dim=['lat', 'lon'])}, inconsistent with the
+$\cos\varphi$-weighted spatial mean used everywhere else. Version 0.1.0
+restored the $\cos\varphi$ weighting; see § Methodology corrections
+(post-paper).
 
 \paragraph{Implementation.}
 \texttt{subselect.io.load\_single\_grid\_w5e5} (one file per variable,
@@ -168,79 +163,64 @@ comparison. \texttt{Config.single\_grid\_reference\_root} (default
 \texttt{<data\_root>/reference/monthly\_cmip6\_upscaled}) keep the two
 products separately addressable; both are TOML-overridable.
 
-\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
-
-\paragraph{Phase 1+ correction candidate: $\sigma_{\text{obs}}$ at native
-0.5\textdegree.} The single-grid product currently used for
-$\sigma_{\text{obs}}$
-(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
-1.25\textdegree~$\times$~1.875\textdegree, 144~$\times$~192) is the
-cmip6-grid \emph{upscaled} variant, not native W5E5. This was confirmed
-during the M9.2 bias-map investigation: the legacy paper notebook
-(\texttt{cell 5} of \texttt{GR\_model\_performance\_HM.ipynb}, line 30) reads
-$\sigma_{\text{obs}}$ from \texttt{ISIMIP3a/monthly\_upscaled/}, which is the
-upscaled-to-cmip6-grid product. The refactor faithfully replicates the
-paper's choice (case (a) in the σ\_obs sanity check). The native 0.5\textdegree{}
-single-grid W5E5 product is now stored at
-\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc} (360~$\times$~720,
-exposed via \texttt{subselect.io.load\_native\_w5e5}); recomputing
-$\sigma_{\text{obs}}$ at native resolution is a Phase 1+ candidate
-correction (alongside the cos$\varphi$-weighting fix flagged above).
+\paragraph{Decided.} 2026-05-01, in version 0.1.0. Both initial parity
+caveats (the unweighted spatial mean and the cmip6-grid upscaled
+$\sigma_{\text{obs}}$ source) were corrected in version 0.1.0; see
+§ Methodology corrections (post-paper).
 
 \subsection{Bias-map observed-mean panel: native 0.5\textdegree{} W5E5}\label{sec:performance-bias-map-obs}
 
-The bias-map figure (\texttt{cell 34} of
-\texttt{GR\_model\_performance\_HM.ipynb}; ported as
-\texttt{subselect.viz.performance\_figs.fig\_bias\_maps\_per\_variable}) has a
-top-row \emph{observed-mean} panel that displays the W5E5 reference field at
-high resolution for visual context, separate from the per-model bias panels
-below it. The legacy notebook reads this panel from
-\texttt{ISIMIP3a/monthly/<var>\_*.nc} (native 0.5\textdegree, 360~$\times$~720), not
+The bias-map figure
+(\texttt{subselect.viz.performance\_figs.fig\_bias\_maps\_per\_variable})
+has a top-row \emph{observed-mean} panel that displays the W5E5
+reference field at high resolution for visual context, separate from
+the per-model bias panels below it. The observed-mean panel is read
+from the native 0.5\textdegree{} W5E5 product (360~$\times$~720), not
 from the cmip6-grid upscaled product used for $\sigma_{\text{obs}}$.
 
-The M9.2 adapter
+The bias-map adapter
 (\texttt{subselect.viz.\_data\_adapters.build\_bias\_maps\_state})
 populates \texttt{observed\_maps[period][variable]} via
 \texttt{subselect.io.load\_native\_w5e5}, which resolves to
-\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc} (the canonical
-location for the native 0.5\textdegree{} product on this MacBook). This restores
-visual parity with the legacy reference figures (\textasciitilde 520 native pixels
-in the Greece bbox, vs the \textasciitilde 49 pixels the cmip6-grid upscaled
-product would have produced). Per-model bias panels remain unchanged — they
-use the per-CMIP6-model upscaled obs (\texttt{load\_w5e5}) since the bias is
-computed cell-by-cell on each model's own grid.
+\texttt{<data\_root>/reference/monthly\_05/<var>\_*.nc}. This yields
+the high-resolution observed-mean panel that pairs naturally with the
+per-model bias maps (\textasciitilde 520 native pixels in the Greece
+bbox, vs the \textasciitilde 49 pixels the cmip6-grid upscaled product
+would have produced). Per-model bias panels remain unchanged --- they
+use the per-CMIP6-model upscaled obs (\texttt{load\_w5e5}) since the
+bias is computed cell-by-cell on each model's own grid.
 
 \paragraph{Implementation.}
 \texttt{subselect.io.load\_native\_w5e5(variable)} returns the native
 0.5\textdegree{} dataset; the loader sorts by lat/lon on read because
-ISIMIP3a files are stored with descending latitude (legacy cell 5 lines
-70--73 do the same). Decided 2026-05-01.
+ISIMIP3a files are stored with descending latitude. Decided 2026-05-01,
+in version 0.1.0.
 
 \subsection{Methodology corrections (post-paper)}\label{sec:performance-corrections}
 
-After the Phase 0 anchor (git tag \texttt{phase-0-complete}, commit
-\texttt{fb7527f}), two methodology corrections were applied to
-$\sigma_{\text{obs}}$. Both shift TSS values slightly (typically $<\!1\%$
-per model) and therefore shift HMperf and the model rankings. The
-corrected behaviour is now canonical for the package; the paper-era
-behaviour is preserved at the \texttt{phase-0-complete} tag and the
-paper-era xlsx outputs are archived under
+The published Greece pipeline carried two minor inconsistencies in the
+$\sigma_{\text{obs}}$ scalar; version 0.1.0 corrected both. The
+corrections shift TSS values slightly (typically $<\!1\%$ per model)
+and therefore shift HMperf and the model rankings. The corrected
+behaviour is canonical from version 0.1.0 onward. Paper-era reference
+outputs are archived under
 \texttt{documentation/historical\_paper\_outputs/} for traceability.
 
 \paragraph{Correction 1: $\cos\varphi$-weighted spatial mean.}
-The paper-era code computed the spatial mean that reduces the per-pixel
-std-over-months map to the $\sigma_{\text{obs}}$ scalar via an
-\emph{unweighted} \texttt{.mean(dim=['lat', 'lon'])} (legacy line 488).
-This was inconsistent with the $\cos\varphi$-weighted spatial mean used
-everywhere else in the pipeline (per-model \texttt{std\_dev},
-\texttt{bias\_score}, all per-pixel comparison metrics). The corrected
-pipeline routes the $\sigma_{\text{obs}}$ spatial mean through
+The published pipeline reduced the per-pixel std-over-months map to
+the $\sigma_{\text{obs}}$ scalar via an \emph{unweighted}
+\texttt{.mean(dim=['lat', 'lon'])}, inconsistent with the
+$\cos\varphi$-weighted spatial mean used everywhere else in the
+pipeline (per-model \texttt{std\_dev}, \texttt{bias\_score}, all
+per-pixel comparison metrics). The corrected pipeline routes the
+$\sigma_{\text{obs}}$ spatial mean through
 \texttt{subselect.performance.\_spatial\_weighted\_mean}, the same
 $\cos\varphi$-weighted helper that every other spatial mean uses.
 
 \paragraph{Correction 2: native 0.5\textdegree{} reference for $\sigma_{\text{obs}}$.}
-The paper-era code read $\sigma_{\text{obs}}$ from the cmip6-grid
-upscaled product (\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
+The published pipeline read $\sigma_{\text{obs}}$ from the cmip6-grid
+upscaled product
+(\texttt{Data/reference/monthly\_upscaled/<var>\_*\_cmip6\_upscaled.nc},
 1.25\textdegree~$\times$~1.875\textdegree, 144~$\times$~192). The
 corrected pipeline reads from the native 0.5\textdegree{} single-grid
 product (\texttt{Data/reference/monthly\_05/<var>\_*.nc},
@@ -254,23 +234,20 @@ Both corrections remove confounds that should not be in the
 $\sigma_{\text{obs}}$ scalar. (1) An unweighted spatial mean
 double-counts high-latitude pixels relative to their actual area; the
 rest of the pipeline uses $\cos\varphi$ weights for exactly this reason,
-and the paper-era inconsistency was an oversight rather than a
+and the original inconsistency was an oversight rather than a
 methodology choice. (2) Computing $\sigma_{\text{obs}}$ on a coarser
 grid than the per-pixel metrics introduces resolution-dependent
 smoothing into the TSS denominator that has no physical basis.
 
 \paragraph{Regression contract.}
-The new contract pins parquet snapshots of the corrected pipeline
-outputs (\texttt{compute\_metrics} per variable, \texttt{compute\_hps},
+Version 0.1.0 pins parquet snapshots of the corrected pipeline outputs
+(\texttt{compute\_metrics} per variable, \texttt{compute\_hps},
 \texttt{compute\_change\_signals}) under
-\texttt{tests/fixtures/regression\_corrected/}. The new
+\texttt{tests/fixtures/regression\_corrected/}.
 \texttt{tests/test\_regression\_corrected.py} asserts bit-identity at
-\texttt{1e-12} against these snapshots. The previous M3 paper-xlsx
-regression test (\texttt{tests/test\_regression\_greece.py}) is dropped:
-its purpose was to prove the port preserved the paper's numbers, which
-is captured by the \texttt{phase-0-complete} tag.
+\texttt{1e-12} against these snapshots.
 
-\paragraph{Decided.} 2026-05-02, package version 0.1.0.dev0.
+\paragraph{Decided.} 2026-05-02, in version 0.1.0.
 
 % =============================================================================
 \section{Future-response spread}\label{sec:spread}
@@ -279,7 +256,7 @@ is captured by the \texttt{phase-0-complete} tag.
 The future-spread dimension is partially inherited from the published Greece
 paper~\citep{tsilimigkras2026subselection} (change variables, scenario
 default) and partially extended for the framework (formal sub-ensemble
-coverage metric). See \texttt{../docs/future\_spread.md} for the design space.
+coverage metric).
 
 % --- entries appended below as spread methodology is finalized ----------------
 
@@ -293,10 +270,10 @@ non-uniform tolerance across the 35-model ensemble?
 ``ATOL\_CHANGE\_SIGNALS = 5e-4'' as the test-wide tolerance to absorb a
 single-model float32 drift on IPSL-CM6A-LR's psl columns specifically.
 
-\paragraph{Rationale.} CMIP6 NetCDF files store fields as float32; both the
-legacy notebook and the new pipeline read float32 and promote to float64
-during xarray operations. For 34 models the promotion order is identical
-in both pipelines, so the change-signal scalars round-trip bit-identically
+\paragraph{Rationale.} CMIP6 NetCDF files store fields as float32, which
+are read and promoted to float64 during xarray operations. For 34 models
+the promotion order matches the published Greece pipeline exactly, so the
+change-signal scalars round-trip bit-identically
 (observed max absolute diff $< 10^{-12}$). IPSL-CM6A-LR is the lone
 outlier: it uses a noleap calendar, and xarray's time-decoding path for
 non-standard calendars promotes float32 $\to$ float64 at a slightly later
@@ -317,10 +294,9 @@ discrete labels rest.
 \paragraph{Implementation.}
 \texttt{tests/test\_regression\_greece.py::test\_greece\_change\_signals\_regression}
 (uses \texttt{ATOL\_CHANGE\_SIGNALS}). The HPS regression test stays at
-\texttt{ATOL\_TARGET}. Cross-referenced from
-\texttt{docs/refactor.md} \S Known limitations / Phase 1+ refinements.
+\texttt{ATOL\_TARGET}.
 
-\paragraph{Decided.} 2026-05-01, package version 0.1.0.dev0.
+\paragraph{Decided.} 2026-05-01, in version 0.1.0.
 
 % =============================================================================
 \section{Model independence}\label{sec:independence}
@@ -329,8 +305,7 @@ discrete labels rest.
 The independence dimension is new in the framework; it was not part of the
 published Greece paper~\citep{tsilimigkras2026subselection}. Two methods are
 scoped: feature-space clustering on a regional climate-response embedding,
-and pairwise-RMSE genealogy clustering. See
-\texttt{../docs/model\_similarity.md} for the design.
+and pairwise-RMSE genealogy clustering.
 
 % --- entries appended below as independence methodology is finalized ---------
 
@@ -338,9 +313,9 @@ and pairwise-RMSE genealogy clustering. See
 \section{Multi-objective optimization}\label{sec:optimization}
 % =============================================================================
 
-The selection engine combines the three dimensions into a scalar cost (default)
-and a Pareto front (diagnostic). See \texttt{../docs/cost\_function.md} for the
-design space and \texttt{subselect.optimize} for the implementation.
+The selection engine combines the three dimensions into a scalar cost
+(default) and a Pareto front (diagnostic). See \texttt{subselect.optimize}
+for the implementation.
 
 % --- entries appended below as optimization methodology is finalized ---------
 
@@ -348,9 +323,8 @@ design space and \texttt{subselect.optimize} for the implementation.
 \section{Country cropping}\label{sec:cropping}
 % =============================================================================
 
-The framework supports both bounding-box and shapefile-based cropping of the
-input fields. See \texttt{../docs/refactor.md} for the rationale and the
-\texttt{subselect.geom} module for the implementation.
+The framework supports both bounding-box and shapefile-based cropping of
+the input fields. See \texttt{subselect.geom} for the implementation.
 
 % --- entries appended below as cropping policy is finalized ------------------
 
@@ -362,9 +336,9 @@ when extracting a CMIP6 model's data over a user-specified country?
 \paragraph{Alternatives considered.}
 \begin{itemize}
   \item \textbf{\texttt{bbox}}: rectangular slice from
-        \texttt{country\_codes.json}, no shapefile dependency. Paper-era
-        setting; over-includes ocean and neighbouring land, especially for
-        archipelagic countries like Greece.
+        \texttt{country\_codes.json}, no shapefile dependency. The published
+        Greece paper used this; it over-includes ocean and neighbouring land,
+        especially for archipelagic countries.
   \item \textbf{\texttt{shapefile\_strict}}: binary mask via
         \texttt{rasterio.features.geometry\_mask} with
         \texttt{all\_touched=False} --- a pixel is included only if its
@@ -392,13 +366,12 @@ NaN entries. Second, \emph{prototype consistency}: the legacy
 \texttt{climpact/shp\_extraction.ipynb} prototype already uses this rule, and
 adopting it as the default avoids re-litigating an empirical choice that was
 satisfactory in earlier exploratory work. Third, \emph{empirical validation}:
-the M5 review (visual comparison of all four methods over Greece, Cyprus, and
-Switzerland on CanESM5 and MPI-ESM1-2-HR; see
-\texttt{notebooks/exploratory/m5\_cropping\_review/}) confirmed that
-\texttt{shapefile\_lenient} captures the country footprint sensibly across
-both archipelagic (Greece), small-island (Cyprus), and mountainous-landlocked
-(Switzerland) geometries on coarse and fine native grids. The paper's
-regression test continues to pin \texttt{bbox} for backward compatibility;
+visual comparison of all four methods over Greece, Cyprus, and Switzerland
+on CanESM5 and MPI-ESM1-2-HR confirmed that \texttt{shapefile\_lenient}
+captures the country footprint sensibly across archipelagic (Greece),
+small-island (Cyprus), and mountainous-landlocked (Switzerland) geometries
+on coarse and fine native grids. The regression test continues to pin
+\texttt{bbox} for parity with the published Greece numbers;
 \texttt{shapefile\_fractional} remains available for boundary-precision
 use cases that justify the larger interface change to weight-aware metrics.
 
@@ -432,15 +405,15 @@ cropped data is masked with NaN where $m(p) = 0$:
 \texttt{tests/test\_geom.py::test\_lenient\_includes\_cell\_when\_polygon\_lands\_inside\_a\_single\_cell}
 and the overshoot-half-cell regression case alongside it.
 
-\paragraph{Decided.} 2026-04-30, package version 0.1.0.dev0.
+\paragraph{Decided.} 2026-04-30, in version 0.1.0.
 
 % =============================================================================
 \section{Caching and reproducibility}\label{sec:caching}
 % =============================================================================
 
-The framework caches per-country results in three layers: parquet for tabular
-metric tables, zarr for fields and matrices, and a SQLite catalog as an index.
-See \texttt{../docs/refactor.md} for the design.
+The framework caches per-country results in two layers: parquet for tabular
+metric tables and zarr for fields and matrices, indexed by a small JSON
+catalog per scope.
 
 % --- entries appended below as caching/reproducibility decisions are made ----
 
@@ -480,10 +453,9 @@ requirement. Third, \emph{web-app delivery}: zarr~v2 directory stores serve
 trivially over HTTP as static files (the Phase~4 web-app delivery model);
 HDF5 single-files require a server runtime to slice. Fourth,
 \emph{reproducibility hooks}: cache invalidation by code version is a
-single SQLite column; harder to retrofit into intake YAML or HDF5 attributes.
-The legacy code's pickle artefacts (in \texttt{legacy/cmip6-greece/}) are
-language-locked and version-fragile; parquet replaces them and removes
-that dependency.
+single JSON-catalog field; harder to retrofit into intake YAML or HDF5
+attributes. Earlier exploratory pickle artefacts were language-locked
+and version-fragile; parquet replaces them and removes that dependency.
 
 \paragraph{Definition.} The cache is per-country and indexed by a small
 JSON catalog at \texttt{cache/}$\langle c \rangle$\texttt{/catalog.json}.
@@ -509,11 +481,11 @@ value type (\texttt{DataFrame}, \texttt{Series}, \texttt{Dataset},
 \texttt{zarr<3} pinned in \texttt{environment.yml} and
 \texttt{pyproject.toml} for v2 directory-store stability.
 
-\paragraph{Decided.} 2026-05-01; revised 2026-05-02 with the
-\texttt{l1l2-restructured} tag to drop the SQLite catalog in favour of a
-per-country JSON catalog. The simpler scope (one country, one cache, one
-catalog) made cross-country indexing unnecessary; SQLite added I/O and
-schema overhead without buying anything at the relevant access pattern.
+\paragraph{Decided.} 2026-05-01, in version 0.1.0. An earlier draft of
+the cache layer carried a SQLite catalog; the simpler scope (one
+country, one cache, one catalog) made cross-country indexing unnecessary
+and the per-scope JSON catalog used in version 0.1.0 onward removes
+SQLite's I/O and schema overhead.
 
 \subsection*{Cache scope: global vs per-country}
 
@@ -581,21 +553,20 @@ global scope. The CLI exposes \texttt{python -m subselect --global-only}
 for explicit warmup and \texttt{--force \{all,country,global\}} for
 scope-targeted recompute.
 
-\paragraph{Numerical artefact of the cache architecture.} The
-spread-pipeline outputs (\texttt{change\_signals},
-\texttt{long\_term\_spread}, \texttt{pre\_industrial\_spread}) drift
-by $\sim$\,$10^{-5}$ absolute / $10^{-7}$ relative compared to the
-\texttt{l1l2-restructured} tag. The drift is a float-summation-order
-artefact of moving from \emph{load $\rightarrow$ crop $\rightarrow$
-time-slice $\rightarrow$ climatology $\rightarrow$ spatial-mean} (legacy)
-to \emph{climatology (global) $\rightarrow$ crop $\rightarrow$ spatial-mean}
-(post-3.6). The two operation orders are mathematically equivalent
-on a continuous-valued field; on float32 reductions they produce
-results that match to six significant digits, six orders of magnitude
+\paragraph{Numerical artefact of the cache architecture.} Compared to
+an earlier development draft that performed \emph{load $\rightarrow$
+crop $\rightarrow$ time-slice $\rightarrow$ climatology $\rightarrow$
+spatial-mean} per-country, the global-cache architecture used from
+version 0.1.0 onward computes the climatology globally and then crops:
+\emph{climatology (global) $\rightarrow$ crop $\rightarrow$
+spatial-mean}. The two operation orders are mathematically equivalent
+on a continuous-valued field; on float32 reductions the spread-pipeline
+outputs (\texttt{change\_signals}, \texttt{long\_term\_spread},
+\texttt{pre\_industrial\_spread}) drift by $\sim$\,$10^{-5}$ absolute /
+$10^{-7}$ relative — six significant digits, six orders of magnitude
 below any climate-relevant threshold. This is a numerical artefact of
-the cache architecture, not a methodology change. The new values are
-the canonical regression-test contract from the
-\texttt{cache-globalized} tag onward.
+the cache architecture, not a methodology change. The post-cache
+values are the canonical regression-test contract.
 
 \paragraph{Cross-scope invalidation.} Per-country artefacts that derive
 from global-cache contents include
@@ -619,12 +590,11 @@ the contract.
 NetCDF reads producing 1380 zarr entries totalling $\sim$3 GB). Warm
 global + cold country: $\sim$1:45 (Greece), 1:42 (Sweden), 1:56
 (Belgium). Warm cache (every artefact cached, 28 figures rendered):
-$\sim$50 s, dominated by cartopy bias-map rendering. Per-country
-bottlenecks for further optimization (batched zarr reads, parallel
-figure render, bias-map persistence) are deferred to a post-v0.1.0
-perf sprint.
+$\sim$50 s, dominated by cartopy bias-map rendering. Further
+optimisation (batched zarr reads, parallel figure render, bias-map
+persistence) is a future performance sprint.
 
-\paragraph{Decided.} 2026-05-02 with the \texttt{cache-globalized} tag.
+\paragraph{Decided.} 2026-05-02, in version 0.1.0.
 
 % =============================================================================
 \bibliographystyle{plainnat}
