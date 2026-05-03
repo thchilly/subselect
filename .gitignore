@@ -69,6 +69,10 @@ Icon?
 *.synctex.gz
 documentation/*.pdf
 
-# M5 (and any future) review-figure outputs — derived from scripts/, not source.
-# The renderer scripts under scripts/ stay tracked.
+# Review-figure outputs — derived from scripts/, not source.
 notebooks/exploratory/m5_cropping_review/
+
+# Internal project documentation and orchestration files (not for public repo).
+docs/
+CLAUDE.md
+.claude/
