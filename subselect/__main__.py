@@ -20,7 +20,17 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import warnings
 from pathlib import Path
+
+# Joblib loky throttles workers mid-batch in the annual-field phase to
+# bound memory; the resulting "A worker stopped while some jobs were given"
+# notice is not actionable for users and clutters CLI output.
+warnings.filterwarnings(
+    "ignore",
+    message=".*worker stopped while some jobs were given.*",
+    category=UserWarning,
+)
 
 from subselect.compute import compute
 from subselect.config import Config

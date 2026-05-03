@@ -9,9 +9,15 @@ called from :func:`subselect.render.render` against a
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 from typing import Dict, Iterable
+
+# adjustText emits a one-shot logger.warning when the axes transform does
+# not support FancyArrowPatch; the message is informational and clutters
+# CLI output. Silence the logger at module import.
+logging.getLogger("adjustText").setLevel(logging.ERROR)
 
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
@@ -1315,8 +1321,10 @@ def fig_bias_maps_per_variable(
             obs_units = variable
             bias_label = f'{variable} Bias'
 
-        # Filter the country polygon out of the GADM 4.1 GeoPackage.
-        gdf = gpd.read_file(shapefile_path)
+        # Filter the country polygon out of the GADM 4.1 GeoPackage. ADM_0
+        # is the country-level layer; specifying it silences pyogrio's
+        # "More than one layer found" warning on GADM's six-layer gpkg.
+        gdf = gpd.read_file(shapefile_path, layer="ADM_0")
         country_boundaries = gdf[gdf["COUNTRY"].str.lower() == country.lower()]
         if country_boundaries.empty:
             raise FileNotFoundError(f"Country {country} not found in {shapefile_path}")
@@ -1433,7 +1441,9 @@ def fig_bias_maps_per_variable(
             cbar = fig.colorbar(sm, cax=cax, orientation='horizontal', extend='both')
             cbar.set_label(bias_label, fontsize=13)
 
-        plt.tight_layout()
+        # plt.tight_layout() is incompatible with cartopy GeoAxes and emits
+        # a warning on every bias-map render; the layout is already managed
+        # via explicit add_axes calls above.
         return fig
 
     figs: Dict[str, plt.Figure] = {}

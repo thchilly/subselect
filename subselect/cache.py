@@ -317,15 +317,15 @@ class Cache:
             }
 
         if kind == "dataset":
-            return xr.open_zarr(path).load()
+            return xr.open_zarr(path, consolidated=False).load()
 
         if kind == "dataarray":
-            ds = xr.open_zarr(path).load()
+            ds = xr.open_zarr(path, consolidated=False).load()
             return ds[list(ds.data_vars)[0]]
 
         if kind == "dict_of_dataset":
             return {
-                p.stem: xr.open_zarr(p).load()
+                p.stem: xr.open_zarr(p, consolidated=False).load()
                 for p in sorted(_iter_zarrs(path))
             }
 
