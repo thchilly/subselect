@@ -1,22 +1,19 @@
-"""M5 cropping validation gate — render the 4-panel comparison.
+"""Diagnostic: visualise the four crop methods over a country.
 
 Produces, per (country, model) pair, a 2×2 figure with one panel per crop
-method (bbox / shapefile_strict / shapefile_lenient / shapefile_fractional).
-Pixels coloured grey (excluded) → orange (included); for the fractional
-panel the orange opacity is the per-pixel area-fraction-inside-country.
+method (``bbox`` / ``shapefile_strict`` / ``shapefile_lenient`` /
+``shapefile_fractional``). Pixels are coloured grey (excluded) →
+orange (included); for the fractional panel, opacity encodes the
+per-pixel area-fraction-inside-country.
 
-**Permanent integration test for `subselect.geom`.** This script is not a
-one-shot M5 deliverable — it is the visual companion to the
-`tests/test_geom.py` regression suite. Re-run it after any future change to
-`subselect.geom.crop` or its helpers; the same six (country, model) pairs
-should regenerate with the same per-method counts. Drift in those counts is
-a regression even if the unit tests pass. Sign-off by Athanasios on the
-rendered output is what locks the framework default in
-`documentation/methods.tex` § Country cropping.
+Useful as a visual companion to ``tests/test_geom.py``: re-run after any
+change to :mod:`subselect.geom` and check that the per-method pixel counts
+look right for representative geometries (archipelagic, small-island,
+mountainous-landlocked) on coarse and fine native grids.
 
 Usage::
 
-    conda run -n subselect python scripts/m5_cropping_review.py
+    python scripts/cropping_review.py
 
 Outputs land in ``notebooks/exploratory/m5_cropping_review/`` as
 ``m5_cropping_<country>_<model>.{png,svg}``.
@@ -38,7 +35,7 @@ from subselect.config import Config
 from subselect.geom import CROP_METHODS, COUNTRY_COLUMN, _centers_to_edges
 
 # Coarse model surfaces the strict zero-pixel risk on small countries;
-# the finer model is the contrast point per the M5 plan.
+# the finer model is a contrast point.
 DEFAULT_MODELS = ("CanESM5", "MPI-ESM1-2-HR")
 DEFAULT_COUNTRIES = ("Greece", "Cyprus", "Switzerland")
 DEFAULT_VARIABLE = "tas"

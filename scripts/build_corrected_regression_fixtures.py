@@ -1,10 +1,12 @@
-"""Build the corrected-pipeline regression fixtures.
+"""Build the regression fixtures for Greece.
 
 Runs ``subselect.performance.compute_metrics`` (all 4 vars) +
-``compute_hps`` + ``subselect.spread.compute_change_signals`` for Greece
-under the corrected methodology (cos-weighted means + native 0.5° σ_obs)
-and writes ``tests/fixtures/regression_corrected/`` — parquet snapshots
-that the regression test pins against.
+``compute_hps`` + ``subselect.spread.compute_change_signals`` for
+Greece and writes parquet snapshots under
+``tests/fixtures/regression_corrected/``. ``tests/test_regression_corrected.py``
+pins the live pipeline outputs against these snapshots at machine
+epsilon. Re-run this script after a deliberate methodology change to
+refresh the pinned values.
 """
 
 from __future__ import annotations

@@ -76,3 +76,9 @@ notebooks/exploratory/m5_cropping_review/
 docs/
 CLAUDE.md
 .claude/
+
+# Development forensics under scripts/ — kept on disk for reference, not
+# part of the public surface.
+scripts/archive/
+scripts/m9_cell_map.md
+scripts/composite_taylor_explore.py
