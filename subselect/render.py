@@ -92,10 +92,6 @@ def render(
     # ------------------------------------------------------------------
     if _enabled("performance") and not ranked_full.empty:
         perf_dir = output_dir / performance_figs.CATEGORY
-        fig = performance_figs.fig_annual_HM_hist_perf(ranked_full, model_ids)
-        written["annual_HM_hist_perf"] = _save(
-            fig, perf_dir / f"{country}_annual_HM_hist_perf.png",
-        )
 
         fig = performance_figs.fig_hps_rankings_annual_and_seasons(ranked_full, model_ids)
         written["HPS_rankings_annual_and_seasons"] = _save(

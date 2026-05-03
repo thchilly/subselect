@@ -26,6 +26,114 @@ CATEGORY = "performance"
 
 
 # --------------------------------------------------------------------------
+# Shared helpers: data-driven axis limits for the seasonal_perf_revised
+# scatter panels (DJF/MAM/JJA/SON × |bias| × annual correlation).
+# --------------------------------------------------------------------------
+
+def _robust_bound(
+    values,
+    *,
+    side: str,
+    iqr_mult: float = 3.0,
+    max_outliers: int = 3,
+) -> float:
+    """Tukey-fence robust upper or lower bound for the inlier set.
+
+    Parameters
+    ----------
+    values : array-like
+        Sample values; NaNs and infinities are dropped.
+    side : ``"upper"`` or ``"lower"``
+        Which Tukey fence to apply.
+    iqr_mult : float
+        Fence multiplier on the IQR. Default 1.5 (standard outliers);
+        2.0–3.0 catches only extreme outliers.
+    max_outliers : int
+        Cap on the number of points classified as outliers. When the
+        Tukey rule flags more than this many, the bound backs off to
+        retain (n_total − max_outliers) values inside. Prevents
+        over-zooming when the distribution is heavy-tailed but not
+        pathological.
+
+    Returns
+    -------
+    float
+        The largest (or smallest, depending on ``side``) value that the
+        rule classifies as an inlier.
+    """
+    arr = np.asarray(pd.to_numeric(values, errors="coerce"), dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return 0.0
+
+    q1, q3 = np.percentile(arr, [25, 75])
+    iqr = q3 - q1
+
+    if side == "upper":
+        fence = q3 + iqr_mult * iqr
+        inlier_mask = arr <= fence
+        n_outliers = int(np.sum(~inlier_mask))
+        if n_outliers > max_outliers:
+            cut = np.partition(arr, -max_outliers - 1)[-max_outliers - 1]
+            inlier_mask = arr <= cut
+        inliers = arr[inlier_mask]
+        return float(inliers.max()) if inliers.size > 0 else float(arr.max())
+
+    if side == "lower":
+        fence = q1 - iqr_mult * iqr
+        inlier_mask = arr >= fence
+        n_outliers = int(np.sum(~inlier_mask))
+        if n_outliers > max_outliers:
+            cut = np.partition(arr, max_outliers)[max_outliers]
+            inlier_mask = arr >= cut
+        inliers = arr[inlier_mask]
+        return float(inliers.min()) if inliers.size > 0 else float(arr.min())
+
+    raise ValueError(f"side must be 'upper' or 'lower', got {side!r}")
+
+
+def _seasonal_perf_revised_limits(
+    perf_metrics_df: pd.DataFrame,
+    *,
+    bias_cols: tuple[str, ...] = ("DJF_bias", "MAM_bias", "JJA_bias", "SON_bias"),
+    corr_col: str = "annual_corr",
+    pad_frac: float = 0.05,
+    iqr_mult: float = 3.0,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Compute ``(xlim, ylim)`` for the four seasonal-perf-revised scatter
+    panels using Tukey-fence robust bounds.
+
+    The four panels share xlim (cross-season comparison) and ylim (annual
+    correlation is the same column for every panel). Outliers — models
+    whose bias or correlation falls beyond the Tukey fence — fall outside
+    the panel and trigger the docking + annotation machinery already in
+    ``scatter_panel_optimized``. The intent is to keep the inlier cluster
+    well-spread instead of letting one or two extreme models compress the
+    whole panel.
+
+    Bias columns are absolute values (per ``performance.py``: the
+    per-pixel bias is taken in absolute value before the cos(lat)-weighted
+    spatial mean when the metric name is ``"bias"``), so xlim floors at 0.
+    Correlation upper bound caps at 1.0.
+    """
+    bias_values = np.concatenate([
+        pd.to_numeric(perf_metrics_df[col], errors="coerce").to_numpy()
+        for col in bias_cols
+    ])
+    bias_upper = _robust_bound(bias_values, side="upper", iqr_mult=iqr_mult)
+    bias_pad = max(bias_upper, 1e-6) * pad_frac
+    xlim = (0.0, bias_upper + bias_pad)
+
+    corr = pd.to_numeric(perf_metrics_df[corr_col], errors="coerce")
+    corr_lower = _robust_bound(corr, side="lower", iqr_mult=iqr_mult)
+    corr_max = float(corr.max())
+    corr_span = max(corr_max - corr_lower, 1e-3)
+    corr_pad = corr_span * pad_frac
+    ylim = (max(0.0, corr_lower - corr_pad), min(1.0, corr_max + corr_pad))
+    return xlim, ylim
+
+
+# --------------------------------------------------------------------------
 # Cell 13 — HPS rank plots: Annual (full-width) + 2×2 seasonal panels
 # --------------------------------------------------------------------------
 
@@ -90,19 +198,25 @@ def fig_hps_rankings_annual_and_seasons(
     # ----------------- build the full figure -----------------
     n_models = len(ranked_full.index)
     fig_w = max(14, n_models * 0.36)
-    # more total height to make room for rotated labels
-    fig = plt.figure(figsize=(fig_w, 15.8))
+    fig = plt.figure(figsize=(fig_w, 14.5))
 
-    # bigger top panel + more vertical spacing between rows; a touch more col spacing too
-    gs = fig.add_gridspec(
-        nrows=3, ncols=2,
-        height_ratios=[2.7, 1.8, 1.8],  # top panel taller
-        hspace=1.1,                    # more vertical gap to avoid overlap
-        wspace=0.15
+    # Two-tier gridspec: outer splits Annual (with long rotated names) from the
+    # 2x2 seasonal block (compact ID labels). Each tier gets its own hspace so
+    # the gap between annual and seasons can be large without wasting space
+    # between the two seasonal rows.
+    outer = fig.add_gridspec(
+        nrows=2, ncols=1,
+        height_ratios=[2.7, 3.6],
+        hspace=0.50,
+    )
+    inner = outer[1].subgridspec(
+        nrows=2, ncols=2,
+        hspace=0.40,
+        wspace=0.15,
     )
 
     # Top: ANNUAL — keep full model names, rotated 90°
-    ax_top = fig.add_subplot(gs[0, :])
+    ax_top = fig.add_subplot(outer[0])
     x, labels, tss, bvs, hps = prepare_for_season(ranked_full, ANNUAL, sort_by_hps=True, top_n=None, use_names=True)
     plot_rank_panel(
         ax_top, x, labels, tss, bvs, hps,
@@ -112,8 +226,8 @@ def fig_hps_rankings_annual_and_seasons(
     )
 
     # Seasons (compact: IDs only), rotate vertical to match style and save space
-    axes_seasonal = [fig.add_subplot(gs[1,0]), fig.add_subplot(gs[1,1]),
-                     fig.add_subplot(gs[2,0]), fig.add_subplot(gs[2,1])]
+    axes_seasonal = [fig.add_subplot(inner[0, 0]), fig.add_subplot(inner[0, 1]),
+                     fig.add_subplot(inner[1, 0]), fig.add_subplot(inner[1, 1])]
     for ax, s in zip(axes_seasonal, SEASONS):
         x, labels, tss, bvs, hps = prepare_for_season(ranked_full, s, sort_by_hps=True, top_n=None, use_names=False)
         plot_rank_panel(
@@ -122,81 +236,6 @@ def fig_hps_rankings_annual_and_seasons(
             compact=True, show_legend=False,
             rotate_labels=90, label_fontsize=9
         )
-
-    plt.tight_layout()
-
-    return fig
-
-
-# --------------------------------------------------------------------------
-# Cell 12 — Annual HM historical performance (single-season variant of cell 13)
-# --------------------------------------------------------------------------
-
-def fig_annual_HM_hist_perf(
-    ranked_full: pd.DataFrame,
-    model_ids: dict,
-) -> plt.Figure:
-    # --- choose season and (optionally) limit to top N models ---
-    season = 'annual'   # one of: 'annual','DJF','MAM','JJA','SON'
-    top_n  = None       # e.g. set to 25 to show top 25
-
-    # columns we need from ranked_full
-    cols_needed = [f'{season}_TSS_mm', f'{season}_bias_score_mm', f'{season}_HMperf']
-    missing = [c for c in cols_needed if c not in ranked_full.columns]
-    if missing:
-        raise KeyError(f"ranked_full is missing columns: {missing}")
-
-    # Capitalize season nicely for the title
-    season_label = season.upper() if season in ['DJF','MAM','JJA','SON'] else season.capitalize()
-
-    # Data to plot (ranked_full is already sorted by annual HMperf in your code)
-    df_plot = ranked_full.copy()
-    if top_n is not None:
-        df_plot = df_plot.head(top_n)
-
-    models = df_plot.index.tolist()
-
-    # Build labels "(ID) Model"
-    # model_ids should already be defined: dict {model_name: int_id}
-    xtick_labels = [f"({model_ids.get(m, 'NA')}) {m}" for m in models]
-
-    tss   = df_plot[f'{season}_TSS_mm'].to_numpy()
-    bias  = df_plot[f'{season}_bias_score_mm'].to_numpy()
-    hm    = df_plot[f'{season}_HMperf'].to_numpy()
-
-    x = np.arange(len(models))
-
-    # Figure sizing that scales with number of models
-    fig_w = max(12, len(models) * 0.35)
-    fig, ax = plt.subplots(figsize=(fig_w, 6))
-
-    # Plot (HM emphasized)
-    ax.set_axisbelow(True)
-    ax.grid(True, axis='y', alpha=0.3, linestyle='--')
-
-    # TSS and Bias lines (context)
-    ax.plot(x, tss,  marker='o', linestyle='-', linewidth=1.3, markersize=5,
-            label='TSS (min–max)', alpha=0.9, zorder=2)
-    ax.plot(x, bias, marker='s', linestyle='-', linewidth=1.3, markersize=5,
-            label='Bias score (min–max)', alpha=0.9, zorder=2)
-
-    # HM performance (dominant)
-    ax.plot(x, hm,   marker='^', linestyle='-', linewidth=2.2, markersize=7,
-            label='HM performance', zorder=3)
-
-    # Axes & labels
-    ax.set_xticks(x)
-    ax.set_xticklabels(xtick_labels, rotation=90, fontsize=9)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel('Historical Performance Score [0,1]', fontsize=12)
-    ax.set_title(f'{season_label} Historical Performance — TSS, Bias Score, and Harmonic Mean',
-                 fontsize=14, pad=8)
-    ax.margins(x=0.01)
-
-    # Legend
-    ax.legend(loc='best', ncol=3, frameon=False)
-
-    plt.tight_layout()
 
     return fig
 
@@ -214,8 +253,7 @@ def fig_seasonal_perf_revised_tas(
 ) -> plt.Figure:
     # --- 1. CONFIGURATION & IMPORTS ---
     variable = 'tas'
-    LIMIT_BIAS = (0.0, 3.5)       # Zoom in on X-axis
-    LIMIT_CORR = (0.978, 1.002)   # Zoom in on Y-axis
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(tas_all_perf_metrics)
 
     # Try to import adjustText for smart label placement
     try:
@@ -444,8 +482,7 @@ def fig_seasonal_perf_revised_pr(
     variable = 'pr'
 
     # Zoom limits for PR (given by you)
-    LIMIT_BIAS = (-0.05, 1.28)
-    LIMIT_CORR = (0.75, 0.95)
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(pr_all_perf_metrics)
 
     # Only model 26 is an outlier (given by you)
     OUTLIER_MODEL_ID = 26
@@ -683,8 +720,7 @@ def fig_seasonal_perf_revised_psl(
     variable = 'psl'
 
     # Zoom limits for PSL (given by you)
-    LIMIT_BIAS = (-0.1, 5.0)
-    LIMIT_CORR = (0.8, 1.0)
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(psl_all_perf_metrics)
 
     # Try to import adjustText for smart label placement
     try:
@@ -909,8 +945,7 @@ def fig_seasonal_perf_revised_tasmax(
     variable = 'tasmax'
 
     # Zoom limits (given by you)
-    LIMIT_BIAS = (0.0, 6.5)
-    LIMIT_CORR = (0.98, 1.00)
+    LIMIT_BIAS, LIMIT_CORR = _seasonal_perf_revised_limits(tasmax_all_perf_metrics)
 
     # Try to import adjustText for smart label placement
     try:
@@ -1601,15 +1636,37 @@ def fig_bias_maps_per_variable(
         minx, miny, maxx, maxy = country_boundaries.total_bounds
         aspect_ratio = (maxx - minx) / max(1e-6, (maxy - miny))
 
-        # Grid sizing
+        # Grid sizing — adaptive to country bounding-box aspect ratio so the
+        # per-model titles remain readable for tall/narrow countries (Sweden,
+        # Chile, Norway, ...). Greece's 6-column default was Greece-tuned;
+        # countries with aspect (width/height) < 1 produce panels too narrow
+        # for typical CMIP6 model names. Two safeguards:
+        #   1. Adaptive n_columns by aspect tier (fewer columns → each panel
+        #      gets more horizontal space).
+        #   2. Minimum panel width floor (MIN_PANEL_WIDTH_INCHES) so even
+        #      extreme cases like Chile keep titles readable.
+        # The map content inside each panel keeps its native aspect via
+        # set_aspect('equal'); when base_width exceeds the natural width the
+        # map sits centred with horizontal padding inside the panel slot.
         n_models = len(bias_maps[period][variable])
-        n_columns = 6
+        if aspect_ratio >= 0.9:
+            n_columns = 6
+        elif aspect_ratio >= 0.6:
+            n_columns = 5
+        elif aspect_ratio >= 0.4:
+            n_columns = 4
+        elif aspect_ratio >= 0.25:
+            n_columns = 3
+        else:
+            n_columns = 2
         n_rows = math.ceil(n_models / n_columns) + 2  # +2 rows for the observed panel
 
         base_height = 1.8
-        base_width  = 0.7 * (base_height * aspect_ratio)
-        fig_width   = base_width * n_columns
-        fig_height  = base_height * n_rows - 2.5
+        MIN_PANEL_WIDTH_INCHES = 1.7  # fits typical CMIP6 model name as title
+        natural_width = 0.7 * (base_height * aspect_ratio)
+        base_width = max(MIN_PANEL_WIDTH_INCHES, natural_width)
+        fig_width  = base_width * n_columns
+        fig_height = base_height * n_rows - 2.5
 
         fig = plt.figure(figsize=(fig_width, fig_height))
         gs = gridspec.GridSpec(n_rows, n_columns, figure=fig)
